@@ -1,0 +1,38 @@
+{
+  "name": "w3xapi",
+  "version": "1.0.0",
+  "description": "",
+  "author": "verit",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "jest:debug": "node --inspect-brk node_modules/.bin/jest --runInBand",
+    "jest": "jest --silent",
+    "pretest": "eslint . --ext .ts",
+    "run": "node bin/operations run",
+    "start": "node dist/index.js",
+    "test": "npm run jest"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.8.7",
+    "@types/express": "^4.17.3",
+    "@types/jest": "^25.1.4",
+    "@types/node": "^13.9.2",
+    "@typescript-eslint/eslint-plugin": "^2.24.0",
+    "@typescript-eslint/parser": "^2.24.0",
+    "eslint": "^6.8.0",
+    "eslint-config-mdcs": ">=4.2.3",
+    "eslint-config-verit": ">=1.0.3",
+    "jest": "^25.1.0",
+    "ts-jest": "^25.2.1",
+    "ts-node": "^8.7.0",
+    "ts-transformer-imports": "^0.4.3",
+    "typescript": "^3.8.3"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "zql": "^1.0.2"
+  },
+  "type": "module"
+}
