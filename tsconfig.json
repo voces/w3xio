@@ -3,7 +3,7 @@
 		"outDir": "dist",
 		"baseUrl": "src",
 		"allowJs": true,
-		"target": "es6",
+		"target": "ES2020",
 		"lib": [ "es2020", "dom" ],
 		"moduleResolution": "classic",
 		"strict": true,
@@ -16,7 +16,8 @@
 		"plugins": [{"transform": "ts-transformer-imports"}],
 		"types": [
 			"@types/jest",
-			"@types/node"
+			"@types/node",
+			"@types/mysql2"
 		],
 		"skipLibCheck": true
 	},
