@@ -1,7 +1,7 @@
 import { z } from "npm:zod";
 import { Handler } from "../types.ts";
 import { db } from "../../sources/kv.ts";
-import { APIError } from "../../gapi/util/ErrorCode.ts";
+import { APIError } from "../ErrorCode.ts";
 import { alertToApi } from "../convert.ts";
 
 export const getAlert: Handler = async (ctx) => {

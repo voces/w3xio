@@ -1,3 +1,0 @@
-mutation {
-    deleteAlert(channelId: "676279504444063754")
-}

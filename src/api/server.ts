@@ -1,7 +1,7 @@
 import { yellow } from "jsr:@std/fmt/colors";
 import { STATUS_CODE } from "jsr:@std/http/status";
 import { format } from "jsr:@std/fmt/bytes";
-import { APIError } from "../gapi/util/ErrorCode.ts";
+import { APIError } from "./ErrorCode.ts";
 import { ZodError } from "npm:zod";
 import { routes } from "./routes.ts";
 import { SerializableResponse } from "./types.ts";
@@ -43,6 +43,13 @@ const getResponse = async (result: unknown) => {
 
 Deno.serve({ port: 3020 }, async (req) => {
   const start = performance.now();
+
+  if (req.headers.get("authorization") !== (Deno.env.get("API_SECRET") ?? "")) {
+    return Response.json(
+      { errors: [{ message: "unauthorized" }] },
+      { status: STATUS_CODE.Unauthorized },
+    );
+  }
 
   let status: number = STATUS_CODE.OK;
   const result = await handle(req).catch((error: unknown) => {
