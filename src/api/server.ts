@@ -1,4 +1,4 @@
-import { yellow } from "jsr:@std/fmt/colors";
+import { blue, brightRed, green, red, yellow } from "jsr:@std/fmt/colors";
 import { STATUS_CODE } from "jsr:@std/http/status";
 import { format } from "jsr:@std/fmt/bytes";
 import { APIError } from "./ErrorCode.ts";
@@ -41,6 +41,15 @@ const getResponse = async (result: unknown) => {
   return `${contentType} ${yellow(format((await result.clone().blob()).size))}`;
 };
 
+const colorizeStatus = (status: number) => {
+  const text = status.toString();
+  if (status < 200) return blue(text);
+  if (status < 300) return green(text);
+  if (status < 400) return yellow(text);
+  if (status < 500) return red(text);
+  return brightRed(text);
+};
+
 Deno.serve({ port: 3020 }, async (req) => {
   const start = performance.now();
 
@@ -73,8 +82,10 @@ Deno.serve({ port: 3020 }, async (req) => {
 
   console.log(
     new Date(),
-    yellow(`${(performance.now() - start).toFixed(3)}ms`),
+    req.method,
+    colorizeStatus(status),
     req.url,
+    yellow(`${(performance.now() - start).toFixed(3)}ms`),
     "→",
     await getResponse(result),
   );
