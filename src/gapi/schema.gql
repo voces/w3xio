@@ -1,0 +1,42 @@
+enum RuleKey {
+  map
+  host
+  name
+  server
+}
+
+type Rule {
+  key: RuleKey!
+  value: String!
+}
+
+type Alert {
+  # channelId in Discord
+  id: String!
+  message: String
+  rules: [Rule!]!
+}
+
+type Query {
+  alert(channelId: String!): Alert!
+}
+
+enum UpsertType {
+  created
+  updated
+}
+
+type AlertResult {
+  action: UpsertType!
+  alert: Alert!
+}
+
+input RuleInput {
+  key: RuleKey!
+  value: String!
+}
+
+type Mutation {
+  alert(channelId: String!, rules: [RuleInput!]!, message: String): AlertResult!
+  deleteAlert(channelId: String!): Boolean
+}

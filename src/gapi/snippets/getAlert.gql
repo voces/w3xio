@@ -1,0 +1,10 @@
+query {
+    alert(channelId: "676279504444063754") {
+        id
+        message
+        rules {
+            key
+            value
+        }
+    }
+}

@@ -1,0 +1,13 @@
+mutation {
+    alert(channelId: "676279504444063754", message: "test", rules: [{key: map, value: "/tree.*tag/i"}]) {
+        action
+        alert {
+            id
+            message
+            rules {
+                key
+                value
+            }
+        }
+    }
+}
