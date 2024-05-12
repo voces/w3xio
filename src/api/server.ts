@@ -46,7 +46,7 @@ Deno.serve({ port: 3020 }, async (req) => {
 
   if (req.headers.get("authorization") !== (Deno.env.get("API_SECRET") ?? "")) {
     return Response.json(
-      { errors: [{ message: "unauthorized" }] },
+      { errors: [{ code: "unauthorized" }] },
       { status: STATUS_CODE.Unauthorized },
     );
   }
