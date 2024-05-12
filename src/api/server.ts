@@ -47,8 +47,8 @@ Deno.serve({ port: 3020 }, async (req) => {
   const url = new URL(req.url);
 
   if (
-    (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) ||
-    (req.method === "get" && url.pathname === "history")
+    (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) &&
+    url.pathname !== "/history"
   ) {
     return Response.json(
       { errors: [{ code: "unauthorized" }] },
@@ -70,8 +70,6 @@ Deno.serve({ port: 3020 }, async (req) => {
 
     return { errors: [error] };
   });
-
-  getResponse(result);
 
   console.log(
     new Date(),
