@@ -44,7 +44,12 @@ const getResponse = async (result: unknown) => {
 Deno.serve({ port: 3020 }, async (req) => {
   const start = performance.now();
 
-  if (req.headers.get("authorization") !== (Deno.env.get("API_SECRET") ?? "")) {
+  const url = new URL(req.url);
+
+  if (
+    (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) ||
+    (req.method === "get" && url.pathname === "history")
+  ) {
     return Response.json(
       { errors: [{ code: "unauthorized" }] },
       { status: STATUS_CODE.Unauthorized },
