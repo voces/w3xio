@@ -68,6 +68,7 @@ export const wc3stats = {
     if (wc3StatsLobbies.length > 0) {
       if (dataSource !== "wc3stats") {
         dataSource = "wc3stats";
+        console.log(new Date(), "updated data source", dataSource);
         discord.applications.editCurrent({
           description: "Lobby feed: wc3stats.com",
         });
@@ -84,11 +85,13 @@ export const wc3stats = {
       });
     if (wc3MapsLobbies.length > 0 && dataSource !== "wc3maps") {
       dataSource = "wc3maps";
+      console.log(new Date(), "updated data source", dataSource);
       discord.applications.editCurrent({
         description: "Lobby feed: wc3maps.com",
       });
     } else if (dataSource !== "none") {
       dataSource = "none";
+      console.log(new Date(), "updated data source", dataSource);
       discord.applications.editCurrent({
         description: "Lobby feed: down",
       });
