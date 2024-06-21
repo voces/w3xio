@@ -53,6 +53,16 @@ const thGameList = z.object({ results: thLobby.array() });
 export type DataSource = "none" | "wc3stats" | "wc3maps";
 let dataSource: DataSource = "none";
 
+const ensureDataSource = (newDatasSource: DataSource) => {
+  if (dataSource === newDatasSource) return;
+  dataSource = newDatasSource;
+  discord.applications.editCurrent({
+    description: `Lobby feed: dataSource${dataSource === "none" ? "" : ".com"}`,
+  })
+    .then((v) => console.log(new Date(), v.description))
+    .catch(console.error);
+};
+
 export const wc3stats = {
   gamelist: async (): Promise<
     { lobbies: Lobby[]; dataSource: DataSource }
@@ -66,13 +76,7 @@ export const wc3stats = {
       });
 
     if (wc3StatsLobbies.length > 0) {
-      if (dataSource !== "wc3stats") {
-        dataSource = "wc3stats";
-        console.log(new Date(), "updated data source", dataSource);
-        discord.applications.editCurrent({
-          description: "Lobby feed: wc3stats.com",
-        });
-      }
+      ensureDataSource("wc3stats");
       return { lobbies: wc3StatsLobbies, dataSource };
     }
 
@@ -84,17 +88,9 @@ export const wc3stats = {
         return [];
       });
     if (wc3MapsLobbies.length > 0 && dataSource !== "wc3maps") {
-      dataSource = "wc3maps";
-      console.log(new Date(), "updated data source", dataSource);
-      discord.applications.editCurrent({
-        description: "Lobby feed: wc3maps.com",
-      });
+      ensureDataSource("wc3maps");
     } else if (dataSource !== "none") {
-      dataSource = "none";
-      console.log(new Date(), "updated data source", dataSource);
-      discord.applications.editCurrent({
-        description: "Lobby feed: down",
-      });
+      ensureDataSource("none");
     }
 
     return { lobbies: wc3MapsLobbies, dataSource };
