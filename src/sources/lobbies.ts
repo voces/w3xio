@@ -1,5 +1,5 @@
 import { z } from "npm:zod";
-import { discord } from "./discord.ts";
+import { discord, messageAdmin } from "./discord.ts";
 
 const hashString = (str: string) => {
   let hash = 0;
@@ -61,8 +61,14 @@ const ensureDataSource = (newDatasSource: DataSource) => {
       dataSource === "none" ? "" : ".com"
     }`,
   })
-    .then((v) => console.log(new Date(), v.description))
-    .catch(console.error);
+    .then((v) => {
+      console.log(new Date(), v.description);
+      messageAdmin(v.description);
+    })
+    .catch((err) => {
+      console.error(err);
+      messageAdmin(`${err}`);
+    });
 };
 
 export const wc3stats = {

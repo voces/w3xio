@@ -1,6 +1,10 @@
 import { DataSource, Lobby, wc3stats } from "./sources/lobbies.ts";
 import { Alert, db, Rule } from "./sources/kv.ts";
-import { discord } from "./sources/discord.ts";
+import {
+  discord,
+  messageAdmin,
+  messageAdminAndWarn,
+} from "./sources/discord.ts";
 import { DiscordAPIError } from "npm:@discordjs/rest@2.2.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 
@@ -94,8 +98,7 @@ const onNewLobby = async (
           } else if (
             err.code === 50001 || err.code === 50007 || err.code === 50013
           ) {
-            console.warn(
-              new Date(),
+            messageAdminAndWarn(
               "Lacking permission to send messages, removing alert channel",
               alert.channelId,
             );
