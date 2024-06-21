@@ -57,7 +57,9 @@ const ensureDataSource = (newDatasSource: DataSource) => {
   if (dataSource === newDatasSource) return;
   dataSource = newDatasSource;
   discord.applications.editCurrent({
-    description: `Lobby feed: dataSource${dataSource === "none" ? "" : ".com"}`,
+    description: `Lobby feed: ${dataSource}${
+      dataSource === "none" ? "" : ".com"
+    }`,
   })
     .then((v) => console.log(new Date(), v.description))
     .catch(console.error);
