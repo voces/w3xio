@@ -3,6 +3,7 @@ import { Handler } from "../types.ts";
 import { db } from "../../sources/kv.ts";
 import { APIError } from "../ErrorCode.ts";
 import { alertToApi } from "../convert.ts";
+import { getChannelDisplay, messageAdmin } from "../../sources/discord.ts";
 
 export const deleteAlert: Handler = async (ctx) => {
   const { channelId } = z.object({ channelId: z.string() }).parse(
@@ -18,6 +19,8 @@ export const deleteAlert: Handler = async (ctx) => {
   }
 
   await db.alerts.delete(channelId);
+
+  messageAdmin(`Alert deleted in ${await getChannelDisplay(channelId)}`);
 
   return alertToApi(alert.value);
 };
