@@ -17,7 +17,7 @@ export const upsertAlert: Handler = async (ctx) => {
   messageAdmin(
     `Alert ${existing ? "updated" : "created"} in ${await getChannelDisplay(
       alert.channelId,
-    )}`,
+    )}\n\`\`\`json\n${JSON.stringify(alert, null, 2)}\n\`\`\``,
   );
 
   return {
