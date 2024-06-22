@@ -57,7 +57,7 @@ Deno.serve({ port: 3020 }, async (req) => {
 
   if (
     (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) &&
-    url.pathname !== "/history"
+    url.pathname !== "/history" && url.pathname !== "/alerts"
   ) {
     return Response.json(
       { errors: [{ code: "unauthorized" }] },

@@ -129,7 +129,5 @@ export const getHistory: Handler = () =>
             window.addEventListener("load", () => scrollTo(0, document.body.scrollHeight));
         </script>
     <body>`,
-    {
-      headers: { "content-type": "text/html" },
-    },
+    { headers: { "content-type": "text/html" } },
   );

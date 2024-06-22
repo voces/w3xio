@@ -24,14 +24,16 @@ export const messageAdminAndWarn = (...parts: unknown[]) => {
   messageAdmin(args.join(" "));
 };
 
-export const getChannelDisplay = async (channelId: string) => {
+const getChannelInfo = async (channelId: string) => {
   const channel = await discord.channels.get(channelId);
   if (channel.type === ChannelType.DM) {
-    return `DM ${
-      channel.recipients?.map((r) => `${r.username} (userId=${r.id})`).join(
-        ", ",
-      )
-    } (channelId=${channelId})`;
+    return {
+      type: "dm" as const,
+      channelId,
+      recipients:
+        channel.recipients?.map((r) => ({ username: r.username, id: r.id })) ??
+          [],
+    };
   }
 
   if ("guild_id" in channel && typeof channel.guild_id === "string") {
@@ -39,10 +41,42 @@ export const getChannelDisplay = async (channelId: string) => {
       with_counts: false,
     });
 
-    return `guild ${guild.name} (guildId=${guild.id}) channel ${channel.name} (channelId=${channelId})`;
+    return {
+      type: "guild" as const,
+      channel: { id: channel.id, name: channel.name },
+      guild: { id: guild.id, name: guild.name },
+    };
   }
 
-  if (channel.name) return `channel ${channel.name} (channelId=${channel.id})`;
+  if (channel.name) {
+    return {
+      type: "unknownWithName" as const,
+      channel: { id: channel.id, name: channel.name },
+    };
+  }
 
-  return channelId;
+  return { type: "unknownWithoutName" as const, channelId };
+};
+
+export const getChannelDisplay = async (channelId: string) => {
+  const info = await getChannelInfo(channelId);
+
+  switch (info.type) {
+    case "dm":
+      return `DM ${
+        info.recipients.map((r) => `${r.username} (userId=${r.id})`).join(
+          ", ",
+        )
+      } (channelId=${channelId})`;
+    case "guild":
+      return `guild ${info.guild.name} (guildId=${info.guild.id}) channel ${info.channel.name} (channelId=${channelId})`;
+    case "unknownWithName":
+      return `channel ${info.channel.name} (channelId=${channelId})`;
+    case "unknownWithoutName":
+      return `channelId=${channelId}`;
+    default: {
+      const absurd: never = info;
+      throw new Error(`Unexpected type ${absurd["type"]}`);
+    }
+  }
 };
