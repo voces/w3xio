@@ -40,10 +40,7 @@ export const upsertAlert: Handler = async (ctx) => {
   messageAdmin(
     `Alert ${existing ? "updated" : "created"} in ${await getChannelDisplay(
       alert.channelId,
-    )}\n\`\`\`json\n${
-      JSON.stringify(alert, (_, v) =>
-        v && typeof v === "object" && v instanceof RegExp ? v.toString() : v, 2)
-    }\n\`\`\``,
+    )}\n\`\`\`js\n${Deno.inspect(alert, { depth: Infinity })}\n\`\`\``,
   );
 
   return {

@@ -46,12 +46,6 @@ export const getAlerts: Handler = async () =>
         color: #ccc;
         font-family: Consolas, "Courier New", monospace;
     }
-    pre {
-        margin: 0.5em 0px;
-        white-space: pre-wrap;
-        margin-left: 8ch;
-        text-indent: -8ch;
-    }
     .ansi-black {color: #000}
     .ansi-red {color: #cd3131}
     .ansi-green {color: #0dbc79}
@@ -74,7 +68,7 @@ export const getAlerts: Handler = async () =>
   ${await db.alerts.getMany().then((v) =>
       `<pre>${
         ansiToHTML(
-          Deno.inspect(v.result, {
+          Deno.inspect(v.result.map((r) => r.value), {
             colors: true,
             depth: Infinity,
             compact: true,
