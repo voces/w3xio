@@ -24,7 +24,7 @@ export const messageAdminAndWarn = (...parts: unknown[]) => {
   messageAdmin(args.join(" "));
 };
 
-const getChannelInfo = async (channelId: string) => {
+export const getChannelInfo = async (channelId: string) => {
   const channel = await discord.channels.get(channelId);
   if (channel.type === ChannelType.DM) {
     return {

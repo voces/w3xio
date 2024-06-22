@@ -7,6 +7,18 @@ const kv = await Deno.openKv();
 export const zAlert = z.object({
   channelId: z.string(),
   message: z.string().optional(),
+  meta: z.union([
+    z.object({
+      type: z.literal("dm"),
+      recipients: z.array(z.object({ id: z.string(), username: z.string() })),
+    }),
+    z.object({
+      type: z.literal("guildChannel"),
+      guildId: z.string(),
+      guildName: z.string(),
+      channelName: z.string(),
+    }),
+  ]).optional(),
   rules: z.object({
     key: z.union([
       z.literal("map"),
