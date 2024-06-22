@@ -40,7 +40,7 @@ export const upsertAlert: Handler = async (ctx) => {
   messageAdmin(
     `Alert ${existing ? "updated" : "created"} in ${await getChannelDisplay(
       alert.channelId,
-    )}\n\`\`\`js\n${Deno.inspect(alert, { depth: Infinity })}\n\`\`\``,
+    )}\n\`\`\`js\n${Deno.inspect(alert.rules, { depth: Infinity })}\n\`\`\``,
   );
 
   return {
