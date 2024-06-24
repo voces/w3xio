@@ -51,8 +51,8 @@ const thLobby = z.object({
 }));
 const thGameList = z.object({ results: thLobby.array() });
 
-export type DataSource = "none" | "wc3stats" | "wc3maps";
-let dataSource: DataSource = "none";
+export type DataSource = "init" | "none" | "wc3stats" | "wc3maps";
+let dataSource: DataSource = "init";
 
 const ensureDataSource = (newDatasSource: DataSource) => {
   if (dataSource === newDatasSource) return;
