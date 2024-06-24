@@ -39,6 +39,7 @@ const thLobby = z.object({
   region: z.string(),
   slots_taken: z.number(),
   slots_total: z.number(),
+  created: z.number(),
 }).transform(({ path, region, slots_taken, slots_total, ...v }) => ({
   ...v,
   id: hashString(`${v.name}-${v.host}-${path}`),
@@ -90,7 +91,15 @@ export const wc3stats = {
 
     const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
       .then((r) => r.json())
-      .then((r) => thGameList.parse(r).results)
+      .then((r) => {
+        const list = thGameList.parse(r).results;
+        const mostRecent = Math.max(...list.map((l) => l.created));
+        // TH's API goes stale rather than down; lobbies are typically created
+        // every few seconds, so we can safely ignore if it's stale for five
+        // minutes.
+        if (Date.now() / 1000 - mostRecent > 300) return [];
+        return list;
+      })
       .catch((err) => {
         console.error(err);
         return [];
