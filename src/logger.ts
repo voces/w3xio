@@ -68,14 +68,14 @@ console.debug = (...args: unknown[]) => {
   originalConsoleDebug.apply(console, styled);
 };
 
-const originalConsoleWarn = console.debug;
+const originalConsoleWarn = console.warn;
 console.warn = (...args: unknown[]) => {
   const styled = style(args);
   logBuffer.add("warn", `${yellow("[warn]")}  ${styled.join(" ")}`);
   originalConsoleWarn.apply(console, styled);
 };
 
-const originalConsoleError = console.debug;
+const originalConsoleError = console.error;
 console.error = (...args: unknown[]) => {
   const styled = style(args);
   logBuffer.add("error", `${red("[error]")} ${styled.join(" ")}`);
