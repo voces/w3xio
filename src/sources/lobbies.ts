@@ -95,8 +95,8 @@ export const wc3stats = {
         console.error(err);
         return [];
       });
-    if (wc3MapsLobbies.length > 0 && dataSource !== "wc3maps") {
-      ensureDataSource("wc3maps");
+    if (wc3MapsLobbies.length > 0) {
+      if (dataSource !== "wc3maps") ensureDataSource("wc3maps");
     } else if (dataSource !== "none") {
       ensureDataSource("none");
     }
