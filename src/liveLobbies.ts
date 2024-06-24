@@ -1,10 +1,6 @@
 import { DataSource, Lobby, wc3stats } from "./sources/lobbies.ts";
 import { Alert, db, Rule } from "./sources/kv.ts";
-import {
-  discord,
-  messageAdmin,
-  messageAdminAndWarn,
-} from "./sources/discord.ts";
+import { discord, messageAdminAndWarn } from "./sources/discord.ts";
 import { DiscordAPIError } from "npm:@discordjs/rest@2.2.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 
