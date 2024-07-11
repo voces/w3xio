@@ -216,10 +216,12 @@ const updateLobbies = async () => {
     const newLobby = newLobbies.find((l) => l.id === oldLobby.id);
     if (!newLobby) {
       if (!oldLobby.deadAt) {
+        console.log(oldLobby.deadAt);
         await onMissingLobby(oldLobby, dataSource);
         missing++;
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
         await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
+        console.log(await db.lobbies.find(oldLobby.id));
       } else if (oldLobby.deadAt <= Date.now()) {
         await onDeadLobby(oldLobby, dataSource);
         dead++;
