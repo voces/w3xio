@@ -66,8 +66,8 @@ const ensureDataSource = (newDatasSource: DataSource) => {
       console.log(new Date(), v.description);
       messageAdmin(v.description);
     })
-    .catch((err) => {
-      console.error(err);
+    .catch((err: unknown) => {
+      console.error(new Date(), err);
       messageAdmin(`${err}`);
     });
 };
@@ -97,8 +97,10 @@ export const wc3stats = {
         try {
           return JSON.parse(text);
         } catch (err) {
-          console.debug(new Date(), text);
-          throw err;
+          console.debug(new Date(), "Invalid json:", text);
+          throw new Error(
+            `Expected json, got ${r.headers.get("content-type")}`,
+          );
         }
       })
       .then((r) => {
@@ -111,7 +113,7 @@ export const wc3stats = {
         return list;
       })
       .catch((err) => {
-        console.error(err);
+        console.error(new Date(), err);
         return [];
       });
     if (wc3MapsLobbies.length > 0) {
