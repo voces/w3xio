@@ -189,10 +189,10 @@ const updateLobbies = async () => {
   let news = 0;
   let updates = 0;
   let found = 0;
-  let lost = 0;
+  let missing = 0;
   let dead = 0;
   let stable = 0;
-  let missing = 0;
+  let dying = 0;
 
   for (const newLobby of newLobbies) {
     const oldLobby = oldLobbies.find((l) => l.id === newLobby.id);
@@ -217,14 +217,14 @@ const updateLobbies = async () => {
     if (!newLobby) {
       if (!oldLobby.deadAt) {
         await onMissingLobby(oldLobby, dataSource);
-        lost++;
+        missing++;
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
         await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
       } else if (oldLobby.deadAt <= Date.now()) {
         await onDeadLobby(oldLobby, dataSource);
         dead++;
         await db.lobbies.delete(oldLobby.id);
-      } else missing++;
+      } else dying++;
     }
   }
 
@@ -241,12 +241,12 @@ const updateLobbies = async () => {
     "found, and",
     stable,
     "stable.",
-    lost,
-    "lost,",
+    missing,
+    "missing,",
     dead,
     "dead, and",
-    missing,
-    "missing",
+    dying,
+    "dying",
   );
 };
 

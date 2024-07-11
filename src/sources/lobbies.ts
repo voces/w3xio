@@ -97,7 +97,7 @@ export const wc3stats = {
         try {
           return JSON.parse(text);
         } catch (err) {
-          console.debug(new Date(), r.text());
+          console.debug(new Date(), text);
           throw err;
         }
       })
