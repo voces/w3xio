@@ -115,6 +115,7 @@ export const wc3stats = {
         return [];
       });
     if (wc3MapsLobbies.length > 0) {
+      failedTries = 0;
       if (dataSource !== "wc3maps") ensureDataSource("wc3maps");
     } else {
       failedTries++;
