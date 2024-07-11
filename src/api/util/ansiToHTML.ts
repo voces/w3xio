@@ -1,3 +1,9 @@
+const escapeHtml = (unsafe: string) =>
+  unsafe.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(
+    ">",
+    "&gt;",
+  ).replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+
 export const ansiToHTML = (text: string): string => {
   // deno-lint-ignore no-control-regex
   const ansiRegex = /\x1b\[(\d+;)*\d+m/g;
@@ -20,7 +26,7 @@ export const ansiToHTML = (text: string): string => {
     "97": "ansi-bright-white",
   };
 
-  return text.replace(ansiRegex, (match) => {
+  return escapeHtml(text).replace(ansiRegex, (match) => {
     const codes = match.slice(2, -1).split(";").map((code) =>
       ansiToClassMap[code] || ""
     );
