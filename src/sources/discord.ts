@@ -16,7 +16,7 @@ export const messageAdmin = (
   discord.channels.createMessage(
     "536352428820529197",
     typeof content === "string" ? { content } : content,
-  );
+  ).catch(() => console.warn(new Date(), "Unable to message admin"));
 
 export const messageAdminAndWarn = (...parts: unknown[]) => {
   const args = [new Date(), ...parts];

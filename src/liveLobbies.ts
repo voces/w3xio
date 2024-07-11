@@ -204,9 +204,8 @@ const updateLobbies = async () => {
       newLobby.messages = oldLobby.messages;
       if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
         await onUpdateLobby(newLobby, dataSource);
-        if (oldLobby.deadAt) {
-          found++;
-        } else updates++;
+        if (oldLobby.deadAt) found++;
+        else updates++;
       } else stable++;
       await db.lobbies.set(newLobby.id, newLobby, { overwrite: true });
     }
@@ -216,7 +215,6 @@ const updateLobbies = async () => {
     const newLobby = newLobbies.find((l) => l.id === oldLobby.id);
     if (!newLobby) {
       if (!oldLobby.deadAt) {
-        console.log(oldLobby.deadAt);
         await onMissingLobby(oldLobby, dataSource);
         missing++;
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
@@ -224,11 +222,6 @@ const updateLobbies = async () => {
           (r) => {
             console.log("???", r);
           },
-        );
-        console.log(
-          "after missing",
-          oldLobby.deadAt,
-          await db.lobbies.find(oldLobby.id),
         );
       } else if (oldLobby.deadAt <= Date.now()) {
         await onDeadLobby(oldLobby, dataSource);
