@@ -92,12 +92,15 @@ export const wc3stats = {
     }
 
     const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
-      .then((r) =>
-        r.json().catch((err) => {
+      .then(async (r) => {
+        const text = await r.text();
+        try {
+          return JSON.parse(text);
+        } catch (err) {
           console.debug(new Date(), r.text());
           throw err;
-        })
-      )
+        }
+      })
       .then((r) => {
         const list = thGameList.parse(r).results;
         const mostRecent = Math.max(...list.map((l) => l.created));
