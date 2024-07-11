@@ -153,7 +153,8 @@ const onUpdateLobby = async (lobby: Lobby, dataSource: DataSource) => {
 };
 
 const onMissingLobby = async (lobby: Lobby, dataSource: DataSource) => {
-  console.debug(new Date(), "Missing lobby", lobby.name);
+  // Missing lobbies don't work correctly on AWS for some reason
+  // console.debug(new Date(), "Missing lobby", lobby.name);
   await Promise.all(
     lobby.messages.map(({ channel, message }) =>
       updateMessage(channel, message, lobby, "missing", dataSource)
