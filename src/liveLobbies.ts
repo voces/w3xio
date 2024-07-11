@@ -220,7 +220,11 @@ const updateLobbies = async () => {
         await onMissingLobby(oldLobby, dataSource);
         missing++;
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
-        await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
+        await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true }).then(
+          (r) => {
+            console.log("???", r);
+          },
+        );
         console.log(
           "after missing",
           oldLobby.deadAt,
