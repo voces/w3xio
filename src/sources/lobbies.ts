@@ -72,6 +72,8 @@ const ensureDataSource = (newDatasSource: DataSource) => {
     });
 };
 
+let failedTries = 0;
+
 export const wc3stats = {
   gamelist: async (): Promise<
     { lobbies: Lobby[]; dataSource: DataSource }
@@ -90,7 +92,12 @@ export const wc3stats = {
     }
 
     const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
-      .then((r) => r.json())
+      .then((r) =>
+        r.json().catch((err) => {
+          console.debug(new Date(), r.text());
+          throw err;
+        })
+      )
       .then((r) => {
         const list = thGameList.parse(r).results;
         const mostRecent = Math.max(...list.map((l) => l.created));
@@ -106,8 +113,9 @@ export const wc3stats = {
       });
     if (wc3MapsLobbies.length > 0) {
       if (dataSource !== "wc3maps") ensureDataSource("wc3maps");
-    } else if (dataSource !== "none") {
-      ensureDataSource("none");
+    } else {
+      failedTries++;
+      if (failedTries > 5 && dataSource !== "none") ensureDataSource("none");
     }
 
     return { lobbies: wc3MapsLobbies, dataSource };
