@@ -1,5 +1,5 @@
 import { z } from "npm:zod";
-import { discord, messageAdmin } from "./discord.ts";
+import { discord, messageAdmin, messageAnders } from "./discord.ts";
 
 const hashString = (str: string) => {
   let hash = 0;
@@ -53,9 +53,11 @@ const thGameList = z.object({ results: thLobby.array() });
 
 export type DataSource = "init" | "none" | "wc3stats" | "wc3maps";
 let dataSource: DataSource = "init";
+let strikeLastAndersMessage: (() => void) | void;
 
 const ensureDataSource = (newDatasSource: DataSource) => {
   if (dataSource === newDatasSource) return;
+  const oldDataSource = dataSource;
   dataSource = newDatasSource;
   discord.applications.editCurrent({
     description: `Lobby feed: ${dataSource}${
@@ -65,6 +67,13 @@ const ensureDataSource = (newDatasSource: DataSource) => {
     .then((v) => {
       console.log(new Date(), v.description);
       messageAdmin(v.description);
+      if (oldDataSource === "wc3stats") {
+        messageAnders("wc3stats down!").then((strike) =>
+          strikeLastAndersMessage = strike
+        );
+      } else if (newDatasSource === "wc3stats" && strikeLastAndersMessage) {
+        strikeLastAndersMessage();
+      }
     })
     .catch((err: unknown) => {
       console.error(new Date(), err);

@@ -1,9 +1,11 @@
 import { REST } from "npm:@discordjs/rest";
+import { API } from "npm:@discordjs/core";
 import {
-  API,
+  APIChannel,
+  APIMessage,
   ChannelType,
-  type RESTPostAPIChannelMessageJSONBody,
-} from "npm:@discordjs/core";
+  RESTPostAPIChannelMessageJSONBody,
+} from "npm:discord-api-types/v10";
 
 const rest = new REST({ version: "10" })
   .setToken(Deno.env.get("DISCORD_TOKEN")!);
@@ -12,20 +14,37 @@ export const discord = new API(rest);
 
 export const messageAdmin = (
   content: RESTPostAPIChannelMessageJSONBody | string,
-) =>
+): Promise<APIMessage | undefined> =>
   discord.channels.createMessage(
     "536352428820529197",
     typeof content === "string" ? { content } : content,
   ).catch(() => console.warn(new Date(), "Unable to message admin"));
 
+export const messageAnders = (
+  content: string,
+) =>
+  discord.channels.createMessage(
+    "245686537138733056",
+    typeof content === "string" ? { content } : content,
+  )
+    .then((m: APIMessage) => () => {
+      discord.channels.editMessage("245686537138733056", m.id, {
+        content: `~~${content}~~`,
+      });
+    })
+    .catch((err) => {
+      messageAdmin(
+        `Error sending message to Anders.\nMessage: ${content}\nError: ${err.message}`,
+      );
+    });
+
 export const messageAdminAndWarn = (...parts: unknown[]) => {
-  const args = [new Date(), ...parts];
-  console.warn(...args);
-  messageAdmin(args.join(" "));
+  console.warn(new Date(), ...parts);
+  messageAdmin(parts.join(" "));
 };
 
 export const getChannelInfo = async (channelId: string) => {
-  const channel = await discord.channels.get(channelId);
+  const channel: APIChannel = await discord.channels.get(channelId);
   if (channel.type === ChannelType.DM) {
     return {
       type: "dm" as const,
