@@ -24,11 +24,11 @@ export const messageAnders = (
   content: string,
 ) =>
   discord.channels.createMessage(
-    "245686537138733056",
+    "1261787658431234169",
     typeof content === "string" ? { content } : content,
   )
     .then((m: APIMessage) => () => {
-      discord.channels.editMessage("245686537138733056", m.id, {
+      discord.channels.editMessage("1261787658431234169", m.id, {
         content: `~~${content}~~`,
       });
     })
