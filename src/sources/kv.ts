@@ -28,6 +28,10 @@ export const zAlert = z.object({
     ]),
     value: z.union([z.string(), z.instanceof(RegExp)]),
   }).array().nonempty(),
+  advanced: z.object({
+    slotOffset: z.number().optional(),
+    thumbnail: z.string().optional(),
+  }).optional(),
 });
 export type Alert = z.infer<typeof zAlert>;
 export type Rule = Alert["rules"][number];

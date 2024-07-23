@@ -31,6 +31,10 @@ export const upsertAlert: Handler = async (ctx) => {
     }
   }
 
+  if (existing?.value.advanced && !alert.advanced) {
+    alert.advanced = existing.value.advanced;
+  }
+
   const result = await db.alerts.set(alert.channelId, alert, {
     overwrite: true,
   });

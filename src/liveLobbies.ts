@@ -30,6 +30,7 @@ const getEmbed = (
   lobby: Lobby,
   status: "alive" | "missing" | "dead",
   dataSource: DataSource,
+  advanced: Alert["advanced"] | undefined,
 ): APIEmbed => ({
   color: colors[status],
   title: lobby.map,
@@ -39,7 +40,9 @@ const getEmbed = (
     { name: "Realm", value: lobby.server, inline: true },
     {
       name: "Players",
-      value: `${lobby.slotsTaken}/${lobby.slotsTotal}`,
+      value: `${
+        lobby.slotsTaken + (advanced?.slotOffset ?? 0)
+      }/${lobby.slotsTotal}`,
       inline: true,
     },
   ],
@@ -49,6 +52,7 @@ const getEmbed = (
       icon_url: "https://wc3maps.com/favicon.png",
     }
     : undefined,
+  thumbnail: advanced?.thumbnail ? { url: advanced.thumbnail } : undefined,
 });
 
 const onNewLobby = async (
@@ -66,7 +70,7 @@ const onNewLobby = async (
             alert.channelId,
             {
               content: alert.message,
-              embeds: [getEmbed(lobby, "alive", dataSource)],
+              embeds: [getEmbed(lobby, "alive", dataSource, alert.advanced)],
               allowed_mentions: {
                 parse: [
                   AllowedMentionsTypes.Role,
@@ -118,10 +122,11 @@ const updateMessage = async (
   lobby: Lobby,
   status: "alive" | "missing" | "dead",
   dataSource: DataSource,
+  alert: Alert | undefined,
 ) => {
   try {
     await discord.channels.editMessage(channel, message, {
-      embeds: [getEmbed(lobby, status, dataSource)],
+      embeds: [getEmbed(lobby, status, dataSource, alert?.advanced)],
     });
     console.log(
       new Date(),
@@ -143,30 +148,63 @@ const updateMessage = async (
   }
 };
 
-const onUpdateLobby = async (lobby: Lobby, dataSource: DataSource) => {
+const onUpdateLobby = async (
+  lobby: Lobby,
+  dataSource: DataSource,
+  alerts: Alert[],
+) => {
   console.debug(new Date(), "Updating lobby", lobby.name);
   await Promise.all(
     lobby.messages.map(({ channel, message }) =>
-      updateMessage(channel, message, lobby, "alive", dataSource)
+      updateMessage(
+        channel,
+        message,
+        lobby,
+        "alive",
+        dataSource,
+        alerts.find((a) => a.channelId === channel),
+      )
     ),
   );
 };
 
-const onMissingLobby = async (lobby: Lobby, dataSource: DataSource) => {
+const onMissingLobby = async (
+  lobby: Lobby,
+  dataSource: DataSource,
+  alerts: Alert[],
+) => {
   // Missing lobbies don't work correctly on AWS for some reason
   // console.debug(new Date(), "Missing lobby", lobby.name);
   await Promise.all(
     lobby.messages.map(({ channel, message }) =>
-      updateMessage(channel, message, lobby, "missing", dataSource)
+      updateMessage(
+        channel,
+        message,
+        lobby,
+        "missing",
+        dataSource,
+        alerts.find((a) => a.channelId === channel),
+      )
     ),
   );
 };
 
-const onDeadLobby = async (lobby: Lobby, dataSource: DataSource) => {
+const onDeadLobby = async (
+  lobby: Lobby,
+  dataSource: DataSource,
+  alerts: Alert[],
+) => {
   console.debug(new Date(), "Dead lobby", lobby.name);
   await Promise.all(
     lobby.messages.map(({ channel, message }) =>
-      updateMessage(channel, message, lobby, "dead", dataSource)
+      updateMessage(
+        channel,
+        message,
+        lobby,
+        "dead",
+        dataSource,
+        alerts.find((a) => a.channelId === channel),
+      )
     ),
   );
 };
@@ -204,7 +242,7 @@ const updateLobbies = async () => {
     } else {
       newLobby.messages = oldLobby.messages;
       if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
-        await onUpdateLobby(newLobby, dataSource);
+        await onUpdateLobby(newLobby, dataSource, alerts);
         if (oldLobby.deadAt) found++;
         else updates++;
       } else stable++;
@@ -216,12 +254,12 @@ const updateLobbies = async () => {
     const newLobby = newLobbies.find((l) => l.id === oldLobby.id);
     if (!newLobby) {
       if (!oldLobby.deadAt) {
-        await onMissingLobby(oldLobby, dataSource);
+        await onMissingLobby(oldLobby, dataSource, alerts);
         missing++;
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
         await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
       } else if (oldLobby.deadAt <= Date.now()) {
-        await onDeadLobby(oldLobby, dataSource);
+        await onDeadLobby(oldLobby, dataSource, alerts);
         dead++;
         await db.lobbies.delete(oldLobby.id);
       } else dying++;
