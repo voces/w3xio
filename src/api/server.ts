@@ -10,6 +10,16 @@ const handle = async (req: Request) => {
   const url = new URL(req.url);
   const reqMethod = req.method.toLowerCase();
 
+  if (
+    (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) &&
+    url.pathname !== "/history" &&
+    (url.pathname !== "/alerts" || reqMethod !== "get")
+  ) {
+    throw new APIError("unauthorized", "Invalid Authorization header", {
+      status: STATUS_CODE.Unauthorized,
+    });
+  }
+
   for (const [method, pattern, handler] of routes) {
     if (reqMethod !== method) continue;
     const result = pattern.exec(url);
@@ -52,30 +62,6 @@ const colorizeStatus = (status: number) => {
 
 Deno.serve({ port: 3020 }, async (req) => {
   const start = performance.now();
-
-  const url = new URL(req.url);
-
-  console.log(
-    "test",
-    req.headers.get("authorization") !== Deno.env.get("API_SECRET"),
-    url.pathname,
-    url.pathname !== "/history",
-    url.pathname !== "/alerts",
-    req.method,
-  );
-
-  if (
-    // Unauthorized
-    (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) &&
-    // Unauthorized routes
-    url.pathname !== "/history" &&
-    (url.pathname !== "/alerts" || req.method !== "GET")
-  ) {
-    return Response.json(
-      { errors: [{ code: "unauthorized" }] },
-      { status: STATUS_CODE.Unauthorized },
-    );
-  }
 
   let status: number = STATUS_CODE.OK;
   const result = await handle(req).catch((error: unknown) => {
