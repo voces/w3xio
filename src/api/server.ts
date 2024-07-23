@@ -55,8 +55,13 @@ Deno.serve({ port: 3020 }, async (req) => {
 
   const url = new URL(req.url);
 
-  console.log("header", req.headers.get("authorization")?.slice(0, 2));
-  console.log("secret", Deno.env.get("API_SECRET")?.slice(0, 2));
+  console.log(
+    "test",
+    req.headers.get("authorization") !== Deno.env.get("API_SECRET"),
+    url.pathname,
+    url.pathname !== "/history",
+    url.pathname !== "/alerts",
+  );
 
   if (
     (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) &&
