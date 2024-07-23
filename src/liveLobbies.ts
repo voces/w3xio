@@ -40,9 +40,9 @@ const getEmbed = (
     { name: "Realm", value: lobby.server, inline: true },
     {
       name: "Players",
-      value: `${
-        lobby.slotsTaken + (advanced?.slotOffset ?? 0)
-      }/${lobby.slotsTotal}`,
+      value: `${lobby.slotsTaken}/${
+        lobby.slotsTotal - (advanced?.slotOffset ?? 0)
+      }`,
       inline: true,
     },
   ],
