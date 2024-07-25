@@ -113,8 +113,8 @@ export const wc3stats = {
         }
       })
       .then((r) => {
-        console.debug(r);
         const list = thGameList.parse(r).results;
+        console.debug(list);
         const mostRecent = Math.max(...list.map((l) => l.created));
         // TH's API goes stale rather than down; lobbies are typically created
         // every few seconds, so we can safely ignore if it's stale for five
