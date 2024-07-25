@@ -103,7 +103,6 @@ export const wc3stats = {
     const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
       .then(async (r) => {
         const text = await r.text();
-        console.debug(text);
         try {
           return JSON.parse(text);
         } catch (err) {
@@ -114,6 +113,7 @@ export const wc3stats = {
         }
       })
       .then((r) => {
+        console.debug(r);
         const list = thGameList.parse(r).results;
         const mostRecent = Math.max(...list.map((l) => l.created));
         // TH's API goes stale rather than down; lobbies are typically created
