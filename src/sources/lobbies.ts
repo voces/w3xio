@@ -103,6 +103,7 @@ export const wc3stats = {
     const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
       .then(async (r) => {
         const text = await r.text();
+        console.debug(text);
         try {
           return JSON.parse(text);
         } catch (err) {
