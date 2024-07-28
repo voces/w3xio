@@ -3,7 +3,6 @@ import { STATUS_CODE } from "jsr:@std/http/status";
 import { format } from "jsr:@std/fmt/bytes";
 import { serveFile } from "jsr:@std/http";
 import { join } from "jsr:@std/path/join";
-import { walk } from "jsr:@std/fs/walk";
 import { APIError } from "./ErrorCode.ts";
 import { ZodError } from "npm:zod";
 import { routes } from "./routes.ts";
