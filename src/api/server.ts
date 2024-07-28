@@ -3,6 +3,7 @@ import { STATUS_CODE } from "jsr:@std/http/status";
 import { format } from "jsr:@std/fmt/bytes";
 import { serveFile } from "jsr:@std/http";
 import { join } from "jsr:@std/path/join";
+import { walk } from "jsr:@std/fs/walk";
 import { APIError } from "./ErrorCode.ts";
 import { ZodError } from "npm:zod";
 import { routes } from "./routes.ts";
@@ -14,14 +15,19 @@ const handle = async (req: Request) => {
 
   if (url.pathname.startsWith("/.well-known/acme-challenge")) {
     const file = url.pathname.split("/").slice(3).join("/");
+    for await (
+      const entry of walk("home/ubuntu/wc3lobbylist/src/w3xio/public")
+    ) {
+      console.log(entry);
+    }
     console.log(
       await Deno.readTextFile(
-        join("/home/ubuntu/wc3lobbylist/src/w3xio/public", file),
+        join("/home/ubuntu/wc3lobbylist/src/w3xio/public", url.pathname),
       ),
     );
     return serveFile(
       req,
-      join("/home/ubuntu/wc3lobbylist/src/w3xio/public", file),
+      join("/home/ubuntu/wc3lobbylist/src/w3xio/public", url.pathname),
     );
   }
 
