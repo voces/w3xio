@@ -14,17 +14,6 @@ const handle = async (req: Request) => {
   const reqMethod = req.method.toLowerCase();
 
   if (url.pathname.startsWith("/.well-known/acme-challenge")) {
-    const file = url.pathname.split("/").slice(3).join("/");
-    for await (
-      const entry of walk("/home/ubuntu/wc3lobbylist/src/w3xio/public")
-    ) {
-      console.log(entry);
-    }
-    console.log(
-      await Deno.readTextFile(
-        join("/home/ubuntu/wc3lobbylist/src/w3xio/public", url.pathname),
-      ),
-    );
     return serveFile(
       req,
       join("/home/ubuntu/wc3lobbylist/src/w3xio/public", url.pathname),
