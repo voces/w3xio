@@ -1,6 +1,8 @@
 import { blue, brightRed, green, red, yellow } from "jsr:@std/fmt/colors";
 import { STATUS_CODE } from "jsr:@std/http/status";
 import { format } from "jsr:@std/fmt/bytes";
+import { serveFile } from "jsr:@std/http";
+import { join } from "jsr:@std/path/join";
 import { APIError } from "./ErrorCode.ts";
 import { ZodError } from "npm:zod";
 import { routes } from "./routes.ts";
@@ -9,6 +11,11 @@ import { SerializableResponse } from "./types.ts";
 const handle = async (req: Request) => {
   const url = new URL(req.url);
   const reqMethod = req.method.toLowerCase();
+
+  if (url.pathname.startsWith("/.well-known/acme-challenge")) {
+    const file = url.pathname.split("/").slice(3).join("/");
+    return serveFile(req, join("../wc3lobblisy/list/src/w3xio/public", file));
+  }
 
   if (
     (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) &&
