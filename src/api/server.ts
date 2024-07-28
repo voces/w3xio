@@ -16,10 +16,10 @@ const handle = async (req: Request) => {
     const file = url.pathname.split("/").slice(3).join("/");
     console.log(
       await Deno.readTextFile(
-        join("../wc3lobblisy/list/src/w3xio/public", file),
+        join("../wc3lobbylist/src/w3xio/public", file),
       ),
     );
-    return serveFile(req, join("../wc3lobblisy/list/src/w3xio/public", file));
+    return serveFile(req, join("../wc3lobbylist/src/w3xio/public", file));
   }
 
   if (
