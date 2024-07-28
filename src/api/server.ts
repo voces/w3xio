@@ -16,7 +16,7 @@ const handle = async (req: Request) => {
   if (url.pathname.startsWith("/.well-known/acme-challenge")) {
     const file = url.pathname.split("/").slice(3).join("/");
     for await (
-      const entry of walk("home/ubuntu/wc3lobbylist/src/w3xio/public")
+      const entry of walk("/home/ubuntu/wc3lobbylist/src/w3xio/public")
     ) {
       console.log(entry);
     }
