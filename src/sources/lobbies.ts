@@ -24,6 +24,7 @@ export const zLobby = z.object({
     .optional()
     .default([]),
   deadAt: z.number().optional(),
+  created: z.number(),
 }).transform((v) => ({ ...v, id: hashString(`${v.name}-${v.host}-${v.map}`) }));
 
 export type Lobby = z.infer<typeof zLobby>;
@@ -89,7 +90,12 @@ export const wc3stats = {
   > => {
     const wc3StatsLobbies = await fetch("https://api.wc3stats.com/gamelist")
       .then((r) => r.json())
-      .then((r) => zGameList.parse(r).body)
+      .then((r) => {
+        const list = zGameList.parse(r).body;
+        const mostRecent = Math.max(...list.map((l) => l.created));
+        if (Date.now() / 1000 - mostRecent > 300) return [];
+        return list;
+      })
       .catch((err) => {
         console.error(err);
         return [];
@@ -115,9 +121,6 @@ export const wc3stats = {
       .then((r) => {
         const list = thGameList.parse(r).results;
         const mostRecent = Math.max(...list.map((l) => l.created));
-        // TH's API goes stale rather than down; lobbies are typically created
-        // every few seconds, so we can safely ignore if it's stale for five
-        // minutes.
         if (Date.now() / 1000 - mostRecent > 300) return [];
         return list;
       })
