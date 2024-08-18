@@ -24,7 +24,7 @@ export const zLobby = z.object({
     .optional()
     .default([]),
   deadAt: z.number().optional(),
-  created: z.number(),
+  created: z.number().optional(),
 }).transform((v) => ({ ...v, id: hashString(`${v.name}-${v.host}-${v.map}`) }));
 
 export type Lobby = z.infer<typeof zLobby>;
@@ -92,7 +92,9 @@ export const wc3stats = {
       .then((r) => r.json())
       .then((r) => {
         const list = zGameList.parse(r).body;
-        const mostRecent = Math.max(...list.map((l) => l.created));
+        const mostRecent = Math.max(
+          ...list.map((l) => l.created).filter((v) => typeof v === "number"),
+        );
         if (Date.now() / 1000 - mostRecent > 300) return [];
         return list;
       })
