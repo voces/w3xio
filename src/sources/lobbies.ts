@@ -24,7 +24,7 @@ export const zLobby = z.object({
     .optional()
     .default([]),
   deadAt: z.number().optional(),
-  created: z.number().optional(),
+  created: z.number().optional(), // Not persisted, but we use to detect stale data
 }).transform((v) => ({ ...v, id: hashString(`${v.name}-${v.host}-${v.map}`) }));
 
 export type Lobby = z.infer<typeof zLobby>;
