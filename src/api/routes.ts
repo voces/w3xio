@@ -4,6 +4,7 @@ import { upsertAlert } from "./routes/upsertAlert.ts";
 import { deleteAlert } from "./routes/deleteAlert.ts";
 import { getHistory } from "./routes/getHistory.ts";
 import { getAlerts } from "./routes/getAlerts.ts";
+import { getStatus } from "./routes/getStatus.ts";
 
 export const routes = ([
   ["get", "/favicon.ico", () => ""],
@@ -12,6 +13,7 @@ export const routes = ([
   ["delete", "/alerts/:channelId", deleteAlert],
   ["get", "/history", getHistory],
   ["get", "/alerts", getAlerts],
+  ["get", "/status", getStatus],
 ] satisfies Routes).map(([method, route, handler]) =>
   [method, new URLPattern({ pathname: route }), handler] as const
 );

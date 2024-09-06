@@ -55,6 +55,7 @@ const thGameList = z.object({ results: thLobby.array() });
 export type DataSource = "init" | "none" | "wc3stats" | "wc3maps";
 let dataSource: DataSource = "init";
 let strikeLastAndersMessage: (() => void) | void;
+export const getDataSource = () => dataSource;
 
 const ensureDataSource = (newDatasSource: DataSource) => {
   if (dataSource === newDatasSource) return;

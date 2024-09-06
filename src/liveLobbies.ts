@@ -4,6 +4,8 @@ import { discord, messageAdminAndWarn } from "./sources/discord.ts";
 import { DiscordAPIError } from "npm:@discordjs/rest@2.2.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 
+export const stats = { lastDataUpdate: 0 };
+
 const UPDATES_PER_MINUTE = 6;
 
 const process = (rules: Rule[], lobby: Lobby): boolean =>
@@ -61,6 +63,7 @@ const onNewLobby = async (
   dataSource: DataSource,
 ) => {
   console.debug(new Date(), "New lobby", lobby.name);
+  stats.lastDataUpdate = Date.now();
   const results = await Promise.all(
     alerts
       .filter((a) => rulesToFilter(a.rules)(lobby))
@@ -154,6 +157,7 @@ const onUpdateLobby = async (
   alerts: Alert[],
 ) => {
   console.debug(new Date(), "Updating lobby", lobby.name);
+  stats.lastDataUpdate = Date.now();
   await Promise.all(
     lobby.messages.map(({ channel, message }) =>
       updateMessage(

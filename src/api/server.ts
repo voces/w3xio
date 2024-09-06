@@ -22,6 +22,7 @@ const handle = async (req: Request) => {
   if (
     (req.headers.get("authorization") !== Deno.env.get("API_SECRET")) &&
     url.pathname !== "/history" &&
+    url.pathname !== "/status" &&
     (url.pathname !== "/alerts" || reqMethod !== "get")
   ) {
     throw new APIError("unauthorized", "Invalid Authorization header", {
