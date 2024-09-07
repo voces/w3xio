@@ -92,6 +92,6 @@ export const getStatus: Handler = async ({ req }) => {
                 </tbody>
             </table>
         </body>`,
-        { headers: { "content-type": "text/html" } },
+        { headers: { "content-type": "text/html; charset=utf-8" } },
     );
 };

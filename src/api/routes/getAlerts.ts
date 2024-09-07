@@ -77,5 +77,5 @@ export const getAlerts: Handler = async () =>
       }</pre>`
     )}
 <body>`,
-    { headers: { "content-type": "text/html" } },
+    { headers: { "content-type": "text/html; charset=utf-8" } },
   );
