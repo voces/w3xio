@@ -11,11 +11,16 @@ const UPDATES_PER_MINUTE = 6;
 const process = (rules: Rule[], lobby: Lobby): boolean =>
   rules.every(({ key, value }) => {
     const lobbyValue = lobby[key];
-    return lobbyValue
-      ? typeof value === "string"
-        ? lobbyValue.toLowerCase().includes(value.toLowerCase())
-        : !!lobbyValue.match(value)
-      : false;
+    if (!lobbyValue) return false;
+    if (typeof value === "string") {
+      if (key === "server") {
+        const lowerCaseLobbyValue = lobbyValue.toLowerCase();
+        return value.toLowerCase().split(",").map((v) => v.trim())
+          .some((v) => lowerCaseLobbyValue.includes(v));
+      }
+      return lobbyValue.toLowerCase().includes(value.toLowerCase());
+    }
+    return !!lobbyValue.match(value);
   });
 
 const rulesToFilter =
