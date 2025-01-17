@@ -50,7 +50,7 @@ const thLobby = z.object({
   slotsTotal: slots_total,
   messages: [],
 }));
-const thGameList = z.object({ results: thLobby.array() });
+const thGameList = z.object({ data: thLobby.array() });
 
 export type DataSource = "init" | "none" | "wc3stats" | "wc3maps";
 let dataSource: DataSource = "init";
@@ -122,9 +122,9 @@ export const wc3stats = {
         }
       })
       .then((r) => {
-        const list = thGameList.parse(r).results;
+        const list = thGameList.parse(r).data;
         const mostRecent = Math.max(...list.map((l) => l.created));
-        if (Date.now() / 1000 - mostRecent > 300) return [];
+        if (Date.now() / 1000 - mostRecent > 600) return [];
         return list;
       })
       .catch((err) => {
