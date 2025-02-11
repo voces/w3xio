@@ -111,6 +111,12 @@ const onNewLobby = async (
               alert.channelId,
             );
             db.alerts.delete(alert.channelId);
+          } else if (err.code === 10003) {
+            messageAdminAndWarn(
+              "Unknown channel, likely deleted",
+              alert.channelId,
+            );
+            db.alerts.delete(alert.channelId);
           } else {
             console.error(
               "Error posting message in channel",
