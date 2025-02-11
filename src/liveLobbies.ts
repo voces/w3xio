@@ -7,6 +7,8 @@ import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 export const stats = { lastDataUpdate: 0 };
 
 const UPDATES_PER_MINUTE = 6;
+const BUCKET_CAPACITY = 25;
+const BUCKET_RATE = 5;
 
 const process = (rules: Rule[], lobby: Lobby): boolean =>
   rules.every(({ key, value }) => {
@@ -143,20 +145,25 @@ const updateMessage = async (
   alert: Alert | undefined,
 ) => {
   try {
-    const channelThrottle = channelThrottles[channel] ??
-      (channelThrottles[channel] = { lastUpdate: 0, bucket: 10 });
-    if (channelThrottle.bucket <= 0) {
-      console.log(
-        new Date(),
-        "Skipping lobby update",
-        lobby.name,
-        "in channel",
-        channel,
-      );
-      return;
+    if (status === "alive") {
+      const channelThrottle = channelThrottles[channel] ??
+        (channelThrottles[channel] = {
+          lastUpdate: 0,
+          bucket: BUCKET_CAPACITY,
+        });
+      if (channelThrottle.bucket <= 0) {
+        console.log(
+          new Date(),
+          "Skipping lobby update",
+          lobby.name,
+          "in channel",
+          channel,
+        );
+        return;
+      }
+      channelThrottle.bucket--;
+      channelThrottle.lastUpdate = Date.now();
     }
-    channelThrottle.bucket--;
-    channelThrottle.lastUpdate = Date.now();
     await discord.channels.editMessage(channel, message, {
       embeds: [getEmbed(lobby, status, dataSource, alert?.advanced)],
     });
@@ -248,7 +255,12 @@ const updateLobbies = async () => {
     const throttle = channelThrottles[channel]!;
     if (now - throttle.lastUpdate > 30 * 60 * 1000) {
       delete channelThrottles[channel];
-    } else throttle.bucket = Math.min(10, throttle.bucket + 2);
+    } else {
+      throttle.bucket = Math.min(
+        BUCKET_CAPACITY,
+        throttle.bucket + BUCKET_RATE,
+      );
+    }
   }
 
   const [
