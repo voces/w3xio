@@ -145,7 +145,7 @@ const updateMessage = async (
   alert: Alert | undefined,
 ) => {
   try {
-    if (status === "alive") {
+    if (status === "alive" || status === "missing") {
       const channelThrottle = channelThrottles[channel] ??
         (channelThrottles[channel] = {
           lastUpdate: 0,
