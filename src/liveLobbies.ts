@@ -124,6 +124,10 @@ const onNewLobby = async (
   return results.filter(<T>(v: T | undefined): v is T => !!v);
 };
 
+const channelThrottles: Record<
+  string,
+  { lastUpdate: number; bucket: number } | undefined
+> = {};
 const updateMessage = async (
   channel: string,
   message: string,
@@ -133,6 +137,20 @@ const updateMessage = async (
   alert: Alert | undefined,
 ) => {
   try {
+    const channelThrottle = channelThrottles[channel] ??
+      (channelThrottles[channel] = { lastUpdate: 0, bucket: 10 });
+    if (channelThrottle.bucket <= 0) {
+      console.log(
+        new Date(),
+        "Skipping lobby update",
+        lobby.name,
+        "in channel",
+        channel,
+      );
+      return;
+    }
+    channelThrottle.bucket--;
+    channelThrottle.lastUpdate = Date.now();
     await discord.channels.editMessage(channel, message, {
       embeds: [getEmbed(lobby, status, dataSource, alert?.advanced)],
     });
@@ -219,6 +237,14 @@ const onDeadLobby = async (
 };
 
 const updateLobbies = async () => {
+  const now = Date.now();
+  for (const channel in channelThrottles) {
+    const throttle = channelThrottles[channel]!;
+    if (now - throttle.lastUpdate > 30 * 60 * 1000) {
+      delete channelThrottles[channel];
+    } else throttle.bucket = Math.min(10, throttle.bucket + 2);
+  }
+
   const [
     { lobbies: newLobbies, dataSource },
     oldLobbies,
