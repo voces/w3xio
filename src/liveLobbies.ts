@@ -7,8 +7,10 @@ import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 export const stats = { lastDataUpdate: 0 };
 
 const UPDATES_PER_MINUTE = 6;
-const BUCKET_CAPACITY = 25;
-const BUCKET_RATE = 5;
+// Load shedding only applies to updates of alive or missing lobbies; creation
+// and deads always get sent
+const BUCKET_CAPACITY = 10;
+const BUCKET_RATE = 2;
 
 const process = (rules: Rule[], lobby: Lobby): boolean =>
   rules.every(({ key, value }) => {
@@ -345,7 +347,7 @@ const makeSingletonJob = (job: () => Promise<unknown>) => {
   let running = false;
   return async () => {
     if (running) {
-      console.warn(new Date(), "Skipping update since already in progress");
+      console.warn(new Date(), "Shedding update since already in progress");
       return;
     }
     running = true;
