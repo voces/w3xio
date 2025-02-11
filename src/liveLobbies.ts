@@ -156,7 +156,7 @@ const updateMessage = async (
       if (channelThrottle.bucket <= 0) {
         console.log(
           new Date(),
-          "Skipping lobby update",
+          "Shedding lobby update",
           lobby.name,
           "in channel",
           channel,
@@ -347,7 +347,7 @@ const makeSingletonJob = (job: () => Promise<unknown>) => {
   let running = false;
   return async () => {
     if (running) {
-      console.warn(new Date(), "Shedding update since already in progress");
+      console.warn(new Date(), "Skipping update since already in progress");
       return;
     }
     running = true;

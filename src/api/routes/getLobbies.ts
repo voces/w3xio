@@ -2,7 +2,7 @@ import { db } from "../../sources/kv.ts";
 import { Handler } from "../types.ts";
 import { ansiToHTML } from "../util/ansiToHTML.ts";
 
-export const getAlerts: Handler = async () =>
+export const getLobbies: Handler = async () =>
   new Response(
     `<head>
   <meta charset="UTF-8">
@@ -32,7 +32,7 @@ export const getAlerts: Handler = async () =>
   </style>
 </head>
 <body>
-  ${await db.alerts.getMany().then((v) =>
+  ${await db.lobbies.getMany().then((v) =>
       `<pre>${
         ansiToHTML(
           Deno.inspect(v.result.map((r) => r.value), {
