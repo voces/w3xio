@@ -14,7 +14,7 @@ export const discord = new API(rest);
 
 export const messageAdmin = (
   content: RESTPostAPIChannelMessageJSONBody | string,
-): Promise<APIMessage | undefined> =>
+): Promise<APIMessage | void> =>
   discord.channels.createMessage(
     "536352428820529197",
     typeof content === "string" ? { content } : content,

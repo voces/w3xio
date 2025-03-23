@@ -1,7 +1,7 @@
 export class APIError extends Error {
   constructor(
     readonly code: string,
-    readonly message: string,
+    override readonly message: string,
     extra?: Record<string, unknown>,
   ) {
     super(message);

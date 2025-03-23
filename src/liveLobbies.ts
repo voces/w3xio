@@ -1,7 +1,7 @@
 import { DataSource, Lobby, wc3stats } from "./sources/lobbies.ts";
 import { Alert, db, Rule } from "./sources/kv.ts";
 import { discord, messageAdminAndWarn } from "./sources/discord.ts";
-import { DiscordAPIError } from "npm:@discordjs/rest@2.2.0";
+import { DiscordAPIError } from "npm:@discordjs/rest@2.3.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 
 export const stats = { lastDataUpdate: 0 };
@@ -154,7 +154,7 @@ const updateMessage = async (
           bucket: BUCKET_CAPACITY,
         });
       if (channelThrottle.bucket <= 0) {
-        console.log(
+        console.debug(
           new Date(),
           "Shedding lobby update",
           lobby.name,
@@ -293,7 +293,9 @@ const updateLobbies = async () => {
     if (!oldLobby) {
       newLobby.messages = await onNewLobby(newLobby, alerts, dataSource);
       news++;
-      await db.lobbies.set(newLobby.id, newLobby, { overwrite: true });
+      await db.lobbies.set(newLobby.id.toString(), newLobby, {
+        overwrite: true,
+      });
     } else {
       newLobby.messages = oldLobby.messages;
       if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
@@ -301,7 +303,9 @@ const updateLobbies = async () => {
         if (oldLobby.deadAt) found++;
         else updates++;
       } else stable++;
-      await db.lobbies.set(newLobby.id, newLobby, { overwrite: true });
+      await db.lobbies.set(newLobby.id.toString(), newLobby, {
+        overwrite: true,
+      });
     }
   }
 
@@ -312,11 +316,13 @@ const updateLobbies = async () => {
         await onMissingLobby(oldLobby, dataSource, alerts);
         missing++;
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
-        await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
+        await db.lobbies.set(oldLobby.id.toString(), oldLobby, {
+          overwrite: true,
+        });
       } else if (oldLobby.deadAt <= Date.now()) {
         await onDeadLobby(oldLobby, dataSource, alerts);
         dead++;
-        await db.lobbies.delete(oldLobby.id);
+        await db.lobbies.delete(oldLobby.id.toString());
       } else dying++;
     }
   }

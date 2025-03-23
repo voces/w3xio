@@ -36,7 +36,10 @@ export const zAlert = z.object({
 export type Alert = z.infer<typeof zAlert>;
 export type Rule = Alert["rules"][number];
 
-export const db = kvdex(kv, {
-  alerts: collection(zAlert, { idGenerator: (v) => v.channelId }),
-  lobbies: collection(zLobby),
+export const db = kvdex({
+  kv,
+  schema: {
+    alerts: collection(zAlert, { idGenerator: (v) => v.channelId }),
+    lobbies: collection(zLobby, { idGenerator: (v) => v.id.toString() }),
+  },
 });
