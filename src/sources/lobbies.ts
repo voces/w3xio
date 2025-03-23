@@ -1,16 +1,6 @@
 import { z } from "npm:zod";
 import { discord, messageAdmin, messageAnders } from "./discord.ts";
 
-const hashString = (str: string) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char; // Bitwise operations to mix the hash
-    hash |= 0; // Convert to a 32bit integer
-  }
-  return hash;
-};
-
 export const zLobby = z.object({
   host: z.string(),
   map: z.string().transform((v) =>
@@ -25,7 +15,7 @@ export const zLobby = z.object({
     .default([]),
   deadAt: z.number().optional(),
   created: z.number().optional(), // Not persisted, but we use to detect stale data
-}).transform((v) => ({ ...v, id: hashString(`${v.name}-${v.host}-${v.map}`) }));
+}).transform((v) => ({ ...v, id: `${v.name}-${v.host}-${v.map}` }));
 
 export type Lobby = z.infer<typeof zLobby>;
 
@@ -43,7 +33,7 @@ const thLobby = z.object({
   created: z.number(),
 }).transform(({ path, region, slots_taken, slots_total, ...v }) => ({
   ...v,
-  id: hashString(`${v.name}-${v.host}-${path}`),
+  id: `${v.name}-${v.host}-${path}`,
   map: path,
   server: region,
   slotsTaken: slots_taken,
