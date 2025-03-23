@@ -40,6 +40,6 @@ export const db = kvdex({
   kv,
   schema: {
     alerts: collection(zAlert, { idGenerator: (v) => v.channelId }),
-    lobbies: collection(zLobby, { idGenerator: (v) => v.id.toString() }),
+    lobbies: collection(zLobby, { idGenerator: (v) => v.id }),
   },
 });

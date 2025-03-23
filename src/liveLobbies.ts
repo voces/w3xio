@@ -293,7 +293,7 @@ const updateLobbies = async () => {
     if (!oldLobby) {
       newLobby.messages = await onNewLobby(newLobby, alerts, dataSource);
       news++;
-      await db.lobbies.set(newLobby.id.toString(), newLobby, {
+      await db.lobbies.set(newLobby.id, newLobby, {
         overwrite: true,
       });
     } else {
@@ -303,7 +303,7 @@ const updateLobbies = async () => {
         if (oldLobby.deadAt) found++;
         else updates++;
       } else stable++;
-      await db.lobbies.set(newLobby.id.toString(), newLobby, {
+      await db.lobbies.set(newLobby.id, newLobby, {
         overwrite: true,
       });
     }
@@ -316,13 +316,13 @@ const updateLobbies = async () => {
         await onMissingLobby(oldLobby, dataSource, alerts);
         missing++;
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
-        await db.lobbies.set(oldLobby.id.toString(), oldLobby, {
+        await db.lobbies.set(oldLobby.id, oldLobby, {
           overwrite: true,
         });
       } else if (oldLobby.deadAt <= Date.now()) {
         await onDeadLobby(oldLobby, dataSource, alerts);
         dead++;
-        await db.lobbies.delete(oldLobby.id.toString());
+        await db.lobbies.delete(oldLobby.id);
       } else dying++;
     }
   }
