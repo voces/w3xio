@@ -4,13 +4,13 @@ import { getDataSource } from "../../sources/lobbies.ts";
 import { Handler } from "../types.ts";
 
 export const getStatus: Handler = async ({ req }) => {
-    const dataSource = getDataSource();
-    const wc3StatsStatus = (dataSource === "none" || dataSource === "wc3maps")
-        ? "down"
-        : "up";
-    const showWc3Maps = dataSource === "wc3maps" || dataSource === "none";
-    const wc3MapsStatus = dataSource === "wc3maps" ? "up" : "down";
-    const lastLobbyUpdate = `<script>
+  const dataSource = getDataSource();
+  const wc3StatsStatus = (dataSource === "none" || dataSource === "wc3maps")
+    ? "down"
+    : "up";
+  const showWc3Maps = dataSource === "wc3maps" || dataSource === "none";
+  const wc3MapsStatus = dataSource === "wc3maps" ? "up" : "down";
+  const lastLobbyUpdate = `<script>
         (function() {
             var date = new Date(${stats.lastDataUpdate});
 
@@ -33,12 +33,12 @@ export const getStatus: Handler = async ({ req }) => {
             document.currentScript.parentNode.insertBefore(textNode, document.currentScript.nextSibling);
         })();
     </script>`;
-    const lobbies = await db.lobbies.getMany().then((v) =>
-        v.result.map((v) => v.value)
-    );
+  const lobbies = await db.lobbies.getMany().then((v) =>
+    v.result.map((v) => v.value)
+  );
 
-    return new Response(
-        `
+  return new Response(
+    `
         <head
             <meta charset="UTF-8">
             <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgo=">
@@ -57,10 +57,10 @@ export const getStatus: Handler = async ({ req }) => {
             <p>Provider: ${dataSource}</p>
             <p><a href="https://wc3stats.com/gamelist">wc3stats.com</a>: ${wc3StatsStatus}</p>
             ${
-            showWc3Maps
-                ? `<p><a href="https://wc3maps.com/live">wc3maps.com</a>: ${wc3MapsStatus}</p>`
-                : ""
-        }
+      showWc3Maps
+        ? `<p><a href="https://wc3maps.com/live">wc3maps.com</a>: ${wc3MapsStatus}</p>`
+        : ""
+    }
             <p>Last lobby update: ${lastLobbyUpdate}</p>
             <p>Known lobbies:</p>
             <table>
@@ -73,12 +73,13 @@ export const getStatus: Handler = async ({ req }) => {
                         <th>Players</th>
                         <th>Status</th>
                         <th>Tracked</th>
+                        <th>ID</th>
                     </tr>
                 </thead>
                 <tbody>
                     ${
-            lobbies.map((l) =>
-                `   <tr>
+      lobbies.map((l) =>
+        `   <tr>
                             <td>${l.map}</td>
                             <td>${l.name}</td>
                             <td>${l.host}</td>
@@ -86,12 +87,13 @@ export const getStatus: Handler = async ({ req }) => {
                             <td>${l.slotsTaken} / ${l.slotsTotal}</td>
                             <td>${l.deadAt ? "Down" : "Up"}</td>
                             <td>${l.messages.length > 0 ? "Yes" : "No"}</td>
+                            <td>${l.id}</td>
                     </tr>`
-            ).join("\n")
-        }
+      ).join("\n")
+    }
                 </tbody>
             </table>
         </body>`,
-        { headers: { "content-type": "text/html; charset=utf-8" } },
-    );
+    { headers: { "content-type": "text/html; charset=utf-8" } },
+  );
 };
