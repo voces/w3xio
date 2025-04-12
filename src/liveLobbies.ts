@@ -271,7 +271,20 @@ const updateLobbies = async () => {
     alerts,
   ] = await Promise.all([
     wc3stats.gamelist(),
-    db.lobbies.getMany().then((v) => v.result.map((v) => v.value)),
+    db.lobbies.getMany().then((v) =>
+      Promise.all(v.result.map(async (d) => {
+        if (d.id !== d.value.id) {
+          console.warn(
+            new Date(),
+            "Found mismatch between document id and value id; restoring and cleaning",
+            d,
+          );
+          await db.lobbies.set(d.value.id, d.value, { overwrite: true });
+          await db.lobbies.delete(d.id);
+        }
+        return d.value;
+      }))
+    ),
     db.alerts.getMany().then((v) => v.result.map((v) => v.value)),
   ]);
 
