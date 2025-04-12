@@ -73,7 +73,6 @@ export const getStatus: Handler = async ({ req }) => {
                         <th>Players</th>
                         <th>Status</th>
                         <th>Tracked</th>
-                        <th>ID</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -85,9 +84,8 @@ export const getStatus: Handler = async ({ req }) => {
                             <td>${l.host}</td>
                             <td>${l.server}</td>
                             <td>${l.slotsTaken} / ${l.slotsTotal}</td>
-                            <td>${l.deadAt ? "Down" : "Up"}</td>
-                            <td>${l.messages.length > 0 ? "Yes" : "No"}</td>
-                            <td>${l.id}</td>
+                            <td>${l.deadAt ? "🔴" : "🟢"}</td>
+                            <td>${l.messages.length}</td>
                     </tr>`
       ).join("\n")
     }
