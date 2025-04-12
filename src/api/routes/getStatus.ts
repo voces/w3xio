@@ -84,8 +84,8 @@ export const getStatus: Handler = async ({ req }) => {
                             <td>${l.host}</td>
                             <td>${l.server}</td>
                             <td>${l.slotsTaken} / ${l.slotsTotal}</td>
-                            <td>${l.deadAt ? "🔴" : "🟢"}</td>
-                            <td>${l.messages.length}</td>
+                            <td>${l.deadAt ? "🟠" : "🟢"}</td>
+                            <td>${l.messages.length || ""}</td>
                     </tr>`
       ).join("\n")
     }
