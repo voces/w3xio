@@ -12,7 +12,7 @@ const UPDATES_PER_MINUTE = 6;
 const BUCKET_CAPACITY = 10;
 const BUCKET_RATE = 2;
 
-const process = (rules: Rule[], lobby: Lobby): boolean =>
+export const process = (rules: Rule[], lobby: Lobby): boolean =>
   rules.every(({ key, value }) => {
     const lobbyValue = lobby[key];
     if (!lobbyValue) return false;
