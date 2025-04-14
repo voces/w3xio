@@ -1,40 +1,53 @@
 import { process, stats } from "../../liveLobbies.ts";
 import { db } from "../../sources/kv.ts";
-import { getDataSource } from "../../sources/lobbies.ts";
+import { getDataSource, Lobby } from "../../sources/lobbies.ts";
 import { Handler } from "../types.ts";
 
-export const getStatus: Handler = async ({ req }) => {
+const formatTime = (
+  created?: number,
+  style: Intl.RelativeTimeFormatStyle = "narrow",
+) => {
+  if (!created) return "";
+
+  const diff = Math.round(Date.now() / 1000) - created;
+
+  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always", style });
+
+  const factor = {
+    days: 60 * 60 * 24,
+    hours: 60 * 60,
+    minutes: 60,
+    seconds: 1,
+  };
+
+  const unit = diff > 60 * 60 * 23.5
+    ? "days"
+    : diff > 60 * 60 * 1.5
+    ? "hours"
+    : diff > 60 * 1.5
+    ? "minutes"
+    : "seconds";
+  return rtf.format(Math.round(-diff / factor[unit]), unit);
+};
+
+const lobbySort = (a: Lobby, b: Lobby) =>
+  (a.created && b.created)
+    ? b.created - a.created
+    : a.created
+    ? 1
+    : b.created
+    ? -1
+    : 0;
+
+export const getStatus: Handler = async () => {
   const dataSource = getDataSource();
   const wc3StatsStatus = (dataSource === "none" || dataSource === "wc3maps")
     ? "down"
     : "up";
   const showWc3Maps = dataSource === "wc3maps" || dataSource === "none";
   const wc3MapsStatus = dataSource === "wc3maps" ? "up" : "down";
-  const lastLobbyUpdate = `<script>
-        (function() {
-            var date = new Date(${stats.lastDataUpdate});
-
-            // Format the date to the user's local timezone
-            var localizedString = date.toLocaleString('en-US', {
-                weekday: 'long', // e.g., Monday
-                year: 'numeric',
-                month: 'long', // e.g., December
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-                timeZoneName: 'short' // e.g., PST
-            });
-
-            // Create a text node with the localized date string
-            var textNode = document.createTextNode(localizedString);
-
-            // Insert the text node after the script tag
-            document.currentScript.parentNode.insertBefore(textNode, document.currentScript.nextSibling);
-        })();
-    </script>`;
   const lobbies = await db.lobbies.getMany().then((v) =>
-    v.result.map((v) => v.value)
+    v.result.map((v) => v.value).sort(lobbySort)
   );
 
   return new Response(
@@ -83,12 +96,23 @@ export const getStatus: Handler = async ({ req }) => {
   </style>
   <script>
   const process = ${process.toString()};
+  const lobbySort = ${lobbySort.toString()};
+  const formatTime = ${formatTime.toString()};
 
-  const lobbies = ${JSON.stringify(lobbies)};
+  let lobbies = ${JSON.stringify(lobbies)};
+  let lastUpdate = ${stats.lastDataUpdate ?? "undefined"};
+  setInterval(async () => {
+    const result = await fetch("/lobbies", {headers: {accept: "application/json"}});
+    const data = await result.json();
+    lobbies = data.lobbies.sort(lobbySort);
+    lastUpdate = data.lastUpdate;
+  }, 10000);
 
-  const applyFilter = () => {
+
+  const update = () => {
     for (const th of document.querySelectorAll("th"))
       th.style.width = th.getBoundingClientRect().width;
+
     const rules = ["map", "host", "name", "server"]
       .map(key => ({key, value: document.getElementById(key).value}))
       .filter(v => v.value)
@@ -99,17 +123,23 @@ export const getStatus: Handler = async ({ req }) => {
     const tracked = document.getElementById("tracked").checked;
     const alive = document.getElementById("alive").checked;
     const filtered = lobbies.filter(l => process(rules, l) && (!alive || !l.deadAt) && (!tracked || l.messages.length));
+
+    document.getElementById("lastUpdate").textContent = formatTime(Math.round(lastUpdate/1000), "long");
     document.getElementById("lobbyCount").textContent = filtered.length;
+
     document.querySelector("tbody").innerHTML = filtered.map(l => \`<tr>
       <td>\${l.map}</td>
       <td>\${l.name}</td>
       <td>\${l.host}</td>
       <td>\${l.server}</td>
+      <td>\${l.created ? formatTime(l.created) : ""}</td>
       <td>\${l.slotsTaken} / \${l.slotsTotal}</td>
       <td>\${l.deadAt ? "🟠" : "🟢"}</td>
       <td>\${l.messages.length || ""}</td>
     </tr>\`).join("\\n");
   };
+
+  setInterval(update, 1000);
   </script>
 </head>
 <body>
@@ -120,8 +150,10 @@ export const getStatus: Handler = async ({ req }) => {
         ? `<p><a href="https://wc3maps.com/live">wc3maps.com</a>: ${wc3MapsStatus}</p>`
         : ""
     }
-  <p>Last lobby update: ${lastLobbyUpdate}</p>
-  <p>Known lobbies: <span id="lobbyCount">${lobbies.length}</span></p>
+  <p>Last lobby update: <span id="lastUpdate">${
+      formatTime(Math.round(stats.lastDataUpdate / 1000), "long")
+    }</span></p>
+  <p>Lobbies: <span id="lobbyCount">${lobbies.length}</span></p>
   <table>
     <thead>
       <tr>
@@ -129,18 +161,20 @@ export const getStatus: Handler = async ({ req }) => {
         <th>Game name</th>
         <th>Host</th>
         <th>Realm</th>
+        <th>Created</th>
         <th>Players</th>
         <th>Status</th>
         <th>Tracked</th>
       </tr>
       <tr>
-        <td><input type="text" id="map" placeholder="/tree.*tag/i" oninput="applyFilter()" /></td>
-        <td><input type="text" id="name" placeholder="-aram" oninput="applyFilter()" /></td>
-        <td><input type="text" id="host" placeholder="verit" oninput="applyFilter()" /></td>
-        <td><input type="text" id="server" placeholder="us, eu, or kr" oninput="applyFilter()" /></td>
-        <th></th>
-        <th><input type="checkbox" id="alive" oninput="applyFilter()" /></th>
-        <th><input type="checkbox" id="tracked" oninput="applyFilter()" /></th>
+        <td><input type="text" size="1" id="map" placeholder="/tree.*tag/i" oninput="update()" /></td>
+        <td><input type="text" size="1" id="name" placeholder="-aram" oninput="update()" /></td>
+        <td><input type="text" size="1" id="host" placeholder="verit" oninput="update()" /></td>
+        <td><input type="text" size="1" id="server" placeholder="us, eu, or kr" oninput="update()" style="min-width: 86px" /></td>
+        <td></td>
+        <td></td>
+        <td><input type="checkbox" id="alive" oninput="update()" /></td>
+        <td><input type="checkbox" id="tracked" oninput="update()" /></td>
       </tr>
     </thead>
     <tbody>
@@ -151,6 +185,7 @@ ${
         <td>${l.name}</td>
         <td>${l.host}</td>
         <td>${l.server}</td>
+        <td>${l.created ? formatTime(l.created) : ""}</td>
         <td>${l.slotsTaken} / ${l.slotsTotal}</td>
         <td>${l.deadAt ? "🟠" : "🟢"}</td>
         <td>${l.messages.length || ""}</td>

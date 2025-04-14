@@ -1,10 +1,21 @@
+import { stats } from "../../liveLobbies.ts";
 import { db } from "../../sources/kv.ts";
 import { Handler } from "../types.ts";
 import { ansiToHTML } from "../util/ansiToHTML.ts";
 
-export const getLobbies: Handler = async () =>
-  new Response(
-    `<head>
+export const getLobbies: Handler = async (ctx) =>
+  ctx.req.headers.get("accept")?.includes("application/json")
+    ? new Response(
+      JSON.stringify({
+        lobbies: (await db.lobbies.getMany()).result.map((r) => r.value),
+        lastUpdate: stats.lastDataUpdate,
+      }),
+      {
+        headers: { "content-type": "application/json" },
+      },
+    )
+    : new Response(
+      `<head>
   <meta charset="UTF-8">
   <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgo=">
   <style>
@@ -33,17 +44,17 @@ export const getLobbies: Handler = async () =>
 </head>
 <body>
   ${await db.lobbies.getMany().then((v) =>
-      `<pre>${
-        ansiToHTML(
-          Deno.inspect(v.result.map((r) => r.value), {
-            colors: true,
-            depth: Infinity,
-            compact: true,
-            iterableLimit: Infinity,
-          }),
-        )
-      }</pre>`
-    )}
+        `<pre>${
+          ansiToHTML(
+            Deno.inspect(v.result.map((r) => r.value), {
+              colors: true,
+              depth: Infinity,
+              compact: true,
+              iterableLimit: Infinity,
+            }),
+          )
+        }</pre>`
+      )}
 <body>`,
-    { headers: { "content-type": "text/html; charset=utf-8" } },
-  );
+      { headers: { "content-type": "text/html; charset=utf-8" } },
+    );
