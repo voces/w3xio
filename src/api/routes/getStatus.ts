@@ -94,7 +94,8 @@ export const getStatus: Handler = async () => {
     color: white;
   }
   </style>
-  <script>
+  <script type="module">
+  import morphdom from "https://esm.sh/morphdom";
   const process = ${process.toString()};
   const lobbySort = ${lobbySort.toString()};
   const formatTime = ${formatTime.toString()};
@@ -127,7 +128,7 @@ export const getStatus: Handler = async () => {
     document.getElementById("lastUpdate").textContent = formatTime(Math.round(lastUpdate/1000), "long");
     document.getElementById("lobbyCount").textContent = filtered.length;
 
-    document.querySelector("tbody").innerHTML = filtered.map(l => \`<tr>
+    morphdom(document.querySelector("tbody"), \`<tbody>\${filtered.map(l => \`<tr id="\${l.id}">
       <td>\${l.map}</td>
       <td>\${l.name}</td>
       <td>\${l.host}</td>
@@ -136,7 +137,7 @@ export const getStatus: Handler = async () => {
       <td>\${l.slotsTaken} / \${l.slotsTotal}</td>
       <td>\${l.deadAt ? "🟠" : "🟢"}</td>
       <td>\${l.messages.length || ""}</td>
-    </tr>\`).join("\\n");
+    </tr>\`).join("\\n")}</tbody>\`);
   };
 
   setInterval(update, 1000);
@@ -180,7 +181,7 @@ export const getStatus: Handler = async () => {
     <tbody>
 ${
       lobbies.map((l) =>
-        `      <tr>
+        `      <tr id="${l.id}">
         <td>${l.map}</td>
         <td>${l.name}</td>
         <td>${l.host}</td>
