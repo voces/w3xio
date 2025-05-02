@@ -1,8 +1,10 @@
-import { DataSource, Lobby, wc3stats } from "./sources/lobbies.ts";
+import { DataSource, getLobbies, Lobby } from "./sources/lobbies.ts";
 import { Alert, db, Rule } from "./sources/kv.ts";
 import { discord, messageAdminAndWarn } from "./sources/discord.ts";
 import { DiscordAPIError } from "npm:@discordjs/rest@2.3.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
+import { getReplayMap, getReplays } from "./sources/replays.ts";
+import { formatTime } from "./api/routes/getStatus.ts";
 
 export const stats = { lastDataUpdate: 0 };
 
@@ -42,6 +44,7 @@ const getEmbed = (
   status: "alive" | "missing" | "dead",
   dataSource: DataSource,
   advanced: Alert["advanced"] | undefined,
+  replayId?: number,
 ): APIEmbed => ({
   color: colors[status],
   title: lobby.map,
@@ -56,6 +59,12 @@ const getEmbed = (
       }`,
       inline: true,
     },
+    ...(replayId
+      ? [{
+        name: "Replay",
+        value: `[Download / Stats](https://wc3stats.com/games/${replayId})`,
+      }]
+      : []),
   ],
   footer: dataSource === "wc3maps"
     ? {
@@ -145,6 +154,7 @@ const updateMessage = async (
   status: "alive" | "missing" | "dead",
   dataSource: DataSource,
   alert: Alert | undefined,
+  replayId?: number,
 ) => {
   try {
     if (status === "alive" || status === "missing") {
@@ -167,7 +177,7 @@ const updateMessage = async (
       channelThrottle.lastUpdate = Date.now();
     }
     await discord.channels.editMessage(channel, message, {
-      embeds: [getEmbed(lobby, status, dataSource, alert?.advanced)],
+      embeds: [getEmbed(lobby, status, dataSource, alert?.advanced, replayId)],
     });
     console.log(
       new Date(),
@@ -251,6 +261,28 @@ const onDeadLobby = async (
   );
 };
 
+const onLobbyReplayPosted = async (
+  lobby: Lobby,
+  dataSource: DataSource,
+  alerts: Alert[],
+  replayId: number,
+) => {
+  console.debug(new Date(), "Replay posted", lobby.name);
+  await Promise.all(
+    lobby.messages.map(({ channel, message }) =>
+      updateMessage(
+        channel,
+        message,
+        lobby,
+        "dead",
+        dataSource,
+        alerts.find((a) => a.channelId === channel),
+        replayId,
+      )
+    ),
+  );
+};
+
 const updateLobbies = async () => {
   const now = Date.now();
   for (const channel in channelThrottles) {
@@ -269,8 +301,9 @@ const updateLobbies = async () => {
     { lobbies: newLobbies, dataSource },
     oldLobbies,
     alerts,
+    replays,
   ] = await Promise.all([
-    wc3stats.gamelist(),
+    getLobbies(),
     db.lobbies.getMany().then((v) =>
       Promise.all(v.result.map(async (d) => {
         if (d.id !== d.value.id) {
@@ -286,6 +319,7 @@ const updateLobbies = async () => {
       }))
     ),
     db.alerts.getMany().then((v) => v.result.map((v) => v.value)),
+    getReplays().catch(() => []),
   ]);
 
   if (newLobbies.length === 0) {
@@ -296,19 +330,29 @@ const updateLobbies = async () => {
   let news = 0;
   let updates = 0;
   let found = 0;
-  let missing = 0;
-  let dead = 0;
+  let disappeared = 0;
+  let died = 0;
   let stable = 0;
-  let dying = 0;
+  let missing = 0;
+  let pendingReplay = 0;
+  let cleared = 0;
+  let linked = 0;
 
   for (const newLobby of newLobbies) {
-    const oldLobby = oldLobbies.find((l) => l.id === newLobby.id);
+    let oldLobby = oldLobbies.find((l) => l.id === newLobby.id);
+
+    // If the host remakes with the same name, clear the old lobby first,
+    // skipping chance of matching the replay
+    if (oldLobby?.dead) {
+      cleared++;
+      await db.lobbies.delete(oldLobby.id);
+      oldLobby = undefined;
+    }
+
     if (!oldLobby) {
       newLobby.messages = await onNewLobby(newLobby, alerts, dataSource);
       news++;
-      await db.lobbies.set(newLobby.id, newLobby, {
-        overwrite: true,
-      });
+      await db.lobbies.set(newLobby.id, newLobby, { overwrite: true });
     } else {
       newLobby.messages = oldLobby.messages;
       if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
@@ -316,27 +360,66 @@ const updateLobbies = async () => {
         if (oldLobby.deadAt) found++;
         else updates++;
       } else stable++;
-      await db.lobbies.set(newLobby.id, newLobby, {
-        overwrite: true,
-      });
+      await db.lobbies.set(newLobby.id, newLobby, { overwrite: true });
     }
   }
 
   for (const oldLobby of oldLobbies) {
+    // Replay lookups
+    try {
+      const matching = replays.filter((r) =>
+        r.name === oldLobby.name && r.players.includes(oldLobby.host)
+      );
+      if (matching.length) {
+        const maps = await Promise.all(
+          matching.map((m) => getReplayMap(m.id)),
+        );
+        const replay = maps.indexOf(oldLobby.map);
+        if (replay >= 0) {
+          linked++;
+          await onLobbyReplayPosted(
+            oldLobby,
+            dataSource,
+            alerts,
+            matching[replay].id,
+          );
+          await db.lobbies.delete(oldLobby.id);
+          continue;
+        }
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
     const newLobby = newLobbies.find((l) => l.id === oldLobby.id);
     if (!newLobby) {
       if (!oldLobby.deadAt) {
         await onMissingLobby(oldLobby, dataSource, alerts);
-        missing++;
+        disappeared++;
+        // Turn lobby orange immediately after disappearing from list; turn red after 5 minutes
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
-        await db.lobbies.set(oldLobby.id, oldLobby, {
-          overwrite: true,
-        });
+        await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
       } else if (oldLobby.deadAt <= Date.now()) {
-        await onDeadLobby(oldLobby, dataSource, alerts);
-        dead++;
-        await db.lobbies.delete(oldLobby.id);
-      } else dying++;
+        if (!oldLobby.dead) {
+          await onDeadLobby(oldLobby, dataSource, alerts);
+          died++;
+          if (oldLobby.messages.length) {
+            pendingReplay++;
+            oldLobby.dead = true;
+            await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
+          } else {
+            cleared++;
+            await db.lobbies.delete(oldLobby.id);
+          }
+        } else if (
+          // Keep lobbies around for 24 hours in case a replay is posted
+          oldLobby.deadAt + 1000 * 60 * 60 * 24 <= Date.now() ||
+          !oldLobby.messages.length
+        ) {
+          cleared++;
+          await db.lobbies.delete(oldLobby.id);
+        } else pendingReplay++;
+      } else missing++;
     }
   }
 
@@ -353,12 +436,23 @@ const updateLobbies = async () => {
     "found, and",
     stable,
     "stable.",
+    disappeared,
+    "disappeared,",
     missing,
-    "missing,",
-    dead,
-    "dead, and",
-    dying,
-    "dying",
+    "missing, and",
+    died,
+    "died.",
+    pendingReplay,
+    "pending replay,",
+    linked,
+    "linked to replay, and",
+    cleared,
+    "cleared.",
+    replays.length,
+    "new replays.",
+    "Completed in",
+    Math.round((Date.now() - now) / 10) / 100,
+    "seconds.",
   );
 };
 

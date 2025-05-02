@@ -1,6 +1,7 @@
 import { collection, kvdex } from "jsr:@olli/kvdex";
 import { z } from "npm:zod";
 import { zLobby } from "./lobbies.ts";
+import { getLastReplayId } from "./replays.ts";
 
 const kv = await Deno.openKv();
 
@@ -43,3 +44,19 @@ export const db = kvdex({
     lobbies: collection(zLobby, { idGenerator: (v) => v.id }),
   },
 });
+
+export const meta = {
+  async getReplayOffset() {
+    try {
+      return z.number().parse((await kv.get(["meta", "replayOffset"])).value);
+    } catch (err) {
+      console.error(err);
+      const current = await getLastReplayId();
+      await kv.set(["meta", "replayOffset"], current);
+      return current;
+    }
+  },
+  async setReplayOffset(value: number) {
+    await kv.set(["meta", "replayOffset"], value);
+  },
+};

@@ -14,7 +14,8 @@ export const zLobby = z.object({
     .optional()
     .default([]),
   deadAt: z.number().optional(),
-  created: z.number().optional(), // Not persisted, but we use to detect stale data
+  created: z.number().optional(),
+  dead: z.boolean().optional(),
 }).transform((v) => ({ ...v, id: `${v.name}-${v.host}-${v.map}` }));
 
 export type Lobby = z.infer<typeof zLobby>;
@@ -75,60 +76,58 @@ const ensureDataSource = (newDatasSource: DataSource) => {
 
 let failedTries = 0;
 
-export const wc3stats = {
-  gamelist: async (): Promise<
-    { lobbies: Lobby[]; dataSource: DataSource }
-  > => {
-    const wc3StatsLobbies = await fetch("https://api.wc3stats.com/gamelist")
-      .then((r) => r.json())
-      .then((r) => {
-        const list = zGameList.parse(r).body;
-        const mostRecent = Math.max(
-          ...list.map((l) => l.created).filter((v) => typeof v === "number"),
+export const getLobbies = async (): Promise<
+  { lobbies: Lobby[]; dataSource: DataSource }
+> => {
+  const wc3StatsLobbies = await fetch("https://api.wc3stats.com/gamelist")
+    .then((r) => r.json())
+    .then((r) => {
+      const list = zGameList.parse(r).body;
+      const mostRecent = Math.max(
+        ...list.map((l) => l.created).filter((v) => typeof v === "number"),
+      );
+      if (Date.now() / 1000 - mostRecent > 300) return [];
+      return list;
+    })
+    .catch((err) => {
+      console.error(err);
+      return [];
+    });
+
+  if (wc3StatsLobbies.length > 0) {
+    ensureDataSource("wc3stats");
+    return { lobbies: wc3StatsLobbies, dataSource };
+  }
+
+  const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
+    .then(async (r) => {
+      const text = await r.text();
+      try {
+        return JSON.parse(text);
+      } catch (err) {
+        console.debug(new Date(), "Invalid json:", text);
+        throw new Error(
+          `Expected json, got ${r.headers.get("content-type")}`,
         );
-        if (Date.now() / 1000 - mostRecent > 300) return [];
-        return list;
-      })
-      .catch((err) => {
-        console.error(err);
-        return [];
-      });
+      }
+    })
+    .then((r) => {
+      const list = thGameList.parse(r).data;
+      const mostRecent = Math.max(...list.map((l) => l.created));
+      if (Date.now() / 1000 - mostRecent > 600) return [];
+      return list;
+    })
+    .catch((err) => {
+      console.error(new Date(), err);
+      return [];
+    });
+  if (wc3MapsLobbies.length > 0) {
+    failedTries = 0;
+    if (dataSource !== "wc3maps") ensureDataSource("wc3maps");
+  } else {
+    failedTries++;
+    if (failedTries > 5 && dataSource !== "none") ensureDataSource("none");
+  }
 
-    if (wc3StatsLobbies.length > 0) {
-      ensureDataSource("wc3stats");
-      return { lobbies: wc3StatsLobbies, dataSource };
-    }
-
-    const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
-      .then(async (r) => {
-        const text = await r.text();
-        try {
-          return JSON.parse(text);
-        } catch (err) {
-          console.debug(new Date(), "Invalid json:", text);
-          throw new Error(
-            `Expected json, got ${r.headers.get("content-type")}`,
-          );
-        }
-      })
-      .then((r) => {
-        const list = thGameList.parse(r).data;
-        const mostRecent = Math.max(...list.map((l) => l.created));
-        if (Date.now() / 1000 - mostRecent > 600) return [];
-        return list;
-      })
-      .catch((err) => {
-        console.error(new Date(), err);
-        return [];
-      });
-    if (wc3MapsLobbies.length > 0) {
-      failedTries = 0;
-      if (dataSource !== "wc3maps") ensureDataSource("wc3maps");
-    } else {
-      failedTries++;
-      if (failedTries > 5 && dataSource !== "none") ensureDataSource("none");
-    }
-
-    return { lobbies: wc3MapsLobbies, dataSource };
-  },
+  return { lobbies: wc3MapsLobbies, dataSource };
 };

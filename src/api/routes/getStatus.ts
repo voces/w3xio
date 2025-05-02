@@ -3,7 +3,7 @@ import { db } from "../../sources/kv.ts";
 import { getDataSource, Lobby } from "../../sources/lobbies.ts";
 import { Handler } from "../types.ts";
 
-const formatTime = (
+export const formatTime = (
   created?: number,
   style: Intl.RelativeTimeFormatStyle = "narrow",
 ) => {
@@ -135,10 +135,12 @@ export const getStatus: Handler = async () => {
       <td>\${l.server}</td>
       <td>\${l.created ? formatTime(l.created) : ""}</td>
       <td>\${l.slotsTaken} / \${l.slotsTotal}</td>
-      <td>\${l.deadAt ? "🟠" : "🟢"}</td>
+      <td>\${l.dead ? "🔴" : l.deadAt ? "🟠" : "🟢"}</td>
       <td>\${l.messages.length || ""}</td>
     </tr>\`).join("\\n")}</tbody>\`);
   };
+
+  globalThis.update = update;
 
   setInterval(update, 1000);
   </script>
@@ -188,7 +190,7 @@ ${
         <td>${l.server}</td>
         <td>${l.created ? formatTime(l.created) : ""}</td>
         <td>${l.slotsTaken} / ${l.slotsTotal}</td>
-        <td>${l.deadAt ? "🟠" : "🟢"}</td>
+        <td>${l.dead ? "🔴" : l.deadAt ? "🟠" : "🟢"}</td>
         <td>${l.messages.length || ""}</td>
       </tr>`
       ).join("\n")
