@@ -1,9 +1,5 @@
 {
-    "tasks": {
-        "codegen": "deno run -A src/gapi/scripts/codegen.ts",
-        "dev": "deno run --watch -A --unstable-kv --unstable-cron src/index.ts",
-        "gql": "deno run -A src/gapi/snippets/execute.ts"
-    },
-    "lint": {"exclude": ["src/gapi/schema.ts"]},
-    "fmt": {"exclude": ["src/gapi/schema.ts"]}
+  "tasks": {
+    "dev": "deno run --watch -A --unstable-kv --unstable-cron src/index.ts"
+  }
 }

@@ -104,7 +104,7 @@ export const getLobbies = async (): Promise<
       const text = await r.text();
       try {
         return JSON.parse(text);
-      } catch (err) {
+      } catch {
         console.debug(new Date(), "Invalid json:", text);
         throw new Error(
           `Expected json, got ${r.headers.get("content-type")}`,

@@ -4,7 +4,7 @@ import { discord, messageAdminAndWarn } from "./sources/discord.ts";
 import { DiscordAPIError } from "npm:@discordjs/rest@2.3.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
-import { formatTime } from "./api/routes/getStatus.ts";
+import { notifyHealthy, notifyReady } from "./sources/watchdog.ts";
 
 export const stats = { lastDataUpdate: 0 };
 
@@ -454,6 +454,8 @@ const updateLobbies = async () => {
     Math.round((Date.now() - now) / 10) / 100,
     "seconds.",
   );
+
+  notifyHealthy();
 };
 
 const makeSingletonJob = (job: () => Promise<unknown>) => {
@@ -476,8 +478,15 @@ const singleJobUpdateLobbies = makeSingletonJob(updateLobbies);
 
 const period = 60_000 / UPDATES_PER_MINUTE;
 
+let armed = false;
+
 if (!Deno.env.get("DISABLE_LIVE_LOBBIES")) {
   Deno.cron("lobbies", "* * * * *", () => {
+    if (!armed) {
+      armed = true;
+      notifyReady();
+    }
+
     singleJobUpdateLobbies();
     for (let i = 1; i < UPDATES_PER_MINUTE; i++) {
       setTimeout(singleJobUpdateLobbies, i * period);
