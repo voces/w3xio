@@ -324,6 +324,7 @@ const updateLobbies = async () => {
 
   if (newLobbies.length === 0) {
     // Don't mass update lobbies to missing if we have none
+    notifyHealthy();
     return console.warn(new Date(), "Found no lobbies");
   }
 
