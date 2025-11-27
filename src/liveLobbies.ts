@@ -69,7 +69,7 @@ const getEmbed = (
   footer: dataSource === "wc3maps"
     ? {
       text: "Powered by https://wc3maps.com",
-      icon_url: "https://wc3maps.com/favicon.png",
+      icon_url: "https://wc3maps.com/images/logo-square.jpg",
     }
     : undefined,
   thumbnail: advanced?.thumbnail ? { url: advanced.thumbnail } : undefined,
