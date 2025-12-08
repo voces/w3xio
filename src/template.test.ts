@@ -10,33 +10,20 @@ const lobby = {
   slotsTotal: 10,
 };
 
-// Variable interpolation tests
-Deno.test("interpolates simple variables", () => {
-  assertEquals(
-    renderMessage("{{host}} is hosting {{map}}", lobby),
-    "Player123 is hosting DotA Allstars",
-  );
-});
-
-Deno.test("interpolates all available fields", () => {
-  assertEquals(
-    renderMessage(
-      "{{name}} | {{map}} | {{host}} | {{server}} | {{slotsTaken}}/{{slotsTotal}}",
-      lobby,
-    ),
-    "DotA v6.83 -apem | DotA Allstars | Player123 | us | 5/10",
-  );
-});
-
-Deno.test("unknown variables are left as-is", () => {
-  assertEquals(
-    renderMessage("Hello {{unknown}} world", lobby),
-    "Hello {{unknown}} world",
-  );
-});
-
+// Basic tests
 Deno.test("returns undefined for undefined template", () => {
   assertEquals(renderMessage(undefined, lobby), undefined);
+});
+
+Deno.test("empty template returns undefined", () => {
+  assertEquals(renderMessage("", lobby), undefined);
+});
+
+Deno.test("template with no special syntax passes through", () => {
+  assertEquals(
+    renderMessage("Just a plain message", lobby),
+    "Just a plain message",
+  );
 });
 
 // Contains condition tests
@@ -137,17 +124,7 @@ Deno.test("if/elseif/else - no condition matches", () => {
   );
 });
 
-// Combined tests
-Deno.test("conditionals with variable interpolation", () => {
-  assertEquals(
-    renderMessage(
-      '{{#if name contains "DotA"}}@DotARole{{#else}}@Everyone{{/if}} - {{host}} hosting {{map}}',
-      lobby,
-    ),
-    "@DotARole - Player123 hosting DotA Allstars",
-  );
-});
-
+// Multiple conditionals
 Deno.test("multiple conditionals in one template", () => {
   assertEquals(
     renderMessage(
@@ -159,20 +136,143 @@ Deno.test("multiple conditionals in one template", () => {
 });
 
 // Edge cases
-Deno.test("empty template returns undefined", () => {
-  assertEquals(renderMessage("", lobby), undefined);
-});
-
-Deno.test("template with no special syntax passes through", () => {
-  assertEquals(
-    renderMessage("Just a plain message", lobby),
-    "Just a plain message",
-  );
-});
-
 Deno.test("nested braces in content", () => {
   assertEquals(
     renderMessage('{{#if name contains "DotA"}}{hello}{{/if}}', lobby),
     "{hello}",
+  );
+});
+
+// Nested conditionals
+Deno.test("nested if - both true", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "DotA"}}{{#if server contains "us"}}US DotA{{/if}}{{/if}}',
+      lobby,
+    ),
+    "US DotA",
+  );
+});
+
+Deno.test("nested if - outer true, inner false", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "DotA"}}{{#if server contains "eu"}}EU DotA{{/if}}{{/if}}',
+      lobby,
+    ),
+    "",
+  );
+});
+
+Deno.test("nested if - outer false", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "Legion"}}{{#if server contains "us"}}US Legion{{/if}}{{/if}}',
+      lobby,
+    ),
+    "",
+  );
+});
+
+Deno.test("nested if with else", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "DotA"}}{{#if server contains "eu"}}EU{{#else}}Not EU{{/if}}{{/if}}',
+      lobby,
+    ),
+    "Not EU",
+  );
+});
+
+Deno.test("deeply nested conditionals", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "DotA"}}{{#if server contains "us"}}{{#if host contains "Player"}}Found{{/if}}{{/if}}{{/if}}',
+      lobby,
+    ),
+    "Found",
+  );
+});
+
+// AND operator tests
+Deno.test("and operator - both true", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "DotA" and server contains "us"}}Both match{{/if}}',
+      lobby,
+    ),
+    "Both match",
+  );
+});
+
+Deno.test("and operator - first false", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "Legion" and server contains "us"}}Both match{{/if}}',
+      lobby,
+    ),
+    "",
+  );
+});
+
+Deno.test("and operator - second false", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "DotA" and server contains "eu"}}Both match{{/if}}',
+      lobby,
+    ),
+    "",
+  );
+});
+
+// OR operator tests
+Deno.test("or operator - both true", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "DotA" or server contains "us"}}One matches{{/if}}',
+      lobby,
+    ),
+    "One matches",
+  );
+});
+
+Deno.test("or operator - first true", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "DotA" or server contains "eu"}}One matches{{/if}}',
+      lobby,
+    ),
+    "One matches",
+  );
+});
+
+Deno.test("or operator - second true", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "Legion" or server contains "us"}}One matches{{/if}}',
+      lobby,
+    ),
+    "One matches",
+  );
+});
+
+Deno.test("or operator - both false", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "Legion" or server contains "eu"}}One matches{{/if}}',
+      lobby,
+    ),
+    "",
+  );
+});
+
+// Combined and/or
+Deno.test("and/or in elseif", () => {
+  assertEquals(
+    renderMessage(
+      '{{#if name contains "Legion"}}Legion{{#elseif name contains "DotA" and server contains "us"}}US DotA{{/if}}',
+      lobby,
+    ),
+    "US DotA",
   );
 });

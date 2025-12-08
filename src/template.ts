@@ -26,9 +26,9 @@ function parseRegex(patternStr: string): RegExp | null {
 const compiledPatterns = new Map<string, RegExp>();
 
 /**
- * Evaluate a condition: field contains|matches value
+ * Evaluate a single condition: field contains|matches value
  */
-function evaluateCondition(
+function evaluateSingleCondition(
   field: string,
   operator: string,
   value: string,
@@ -55,19 +55,245 @@ function evaluateCondition(
   }
 }
 
+// A single condition: field operator "value"
+type SingleCondition = { field: string; operator: string; value: string };
+
+// A compound condition with and/or
+type Condition =
+  | SingleCondition
+  | { type: "and"; left: Condition; right: Condition }
+  | { type: "or"; left: Condition; right: Condition };
+
+/**
+ * Evaluate a condition (single or compound) against a context
+ */
+function evaluateCondition(condition: Condition, context: TemplateContext): boolean {
+  if ("type" in condition) {
+    if (condition.type === "and") {
+      return evaluateCondition(condition.left, context) && evaluateCondition(condition.right, context);
+    } else {
+      return evaluateCondition(condition.left, context) || evaluateCondition(condition.right, context);
+    }
+  }
+  return evaluateSingleCondition(condition.field, condition.operator, condition.value, context);
+}
+
+// Token types for the parser
+type Token =
+  | { type: "text"; value: string }
+  | { type: "if"; condition: Condition }
+  | { type: "elseif"; condition: Condition }
+  | { type: "else" }
+  | { type: "endif" };
+
+/**
+ * Parse a condition string like: field contains "value" and field2 matches "/pattern/"
+ */
+function parseCondition(condStr: string): Condition | null {
+  // Split by " or " first (lower precedence), then " and " (higher precedence)
+  const orParts = condStr.split(/\s+or\s+/);
+  if (orParts.length > 1) {
+    let result = parseCondition(orParts[0]);
+    if (!result) return null;
+    for (let i = 1; i < orParts.length; i++) {
+      const right = parseCondition(orParts[i]);
+      if (!right) return null;
+      result = { type: "or", left: result, right };
+    }
+    return result;
+  }
+
+  const andParts = condStr.split(/\s+and\s+/);
+  if (andParts.length > 1) {
+    let result = parseCondition(andParts[0]);
+    if (!result) return null;
+    for (let i = 1; i < andParts.length; i++) {
+      const right = parseCondition(andParts[i]);
+      if (!right) return null;
+      result = { type: "and", left: result, right };
+    }
+    return result;
+  }
+
+  // Single condition: field operator "value"
+  const singleMatch = condStr.match(/^(\w+)\s+(contains|matches)\s+"([^"]*)"$/);
+  if (singleMatch) {
+    return {
+      field: singleMatch[1],
+      operator: singleMatch[2],
+      value: singleMatch[3],
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Tokenize a template string into tokens
+ */
+function tokenize(template: string): Token[] {
+  const tokens: Token[] = [];
+  // Match {{#if ...}}, {{#elseif ...}}, {{#else}}, {{/if}}
+  const tagPattern = /\{\{(#if\s+(.+?)|#elseif\s+(.+?)|#else|\/if)\}\}/g;
+
+  let lastIndex = 0;
+  let match;
+
+  while ((match = tagPattern.exec(template)) !== null) {
+    // Add text before this tag
+    if (match.index > lastIndex) {
+      tokens.push({ type: "text", value: template.slice(lastIndex, match.index) });
+    }
+
+    const fullMatch = match[1];
+
+    if (fullMatch.startsWith("#if ")) {
+      const condition = parseCondition(match[2]);
+      if (condition) {
+        tokens.push({ type: "if", condition });
+      }
+    } else if (fullMatch.startsWith("#elseif ")) {
+      const condition = parseCondition(match[3]);
+      if (condition) {
+        tokens.push({ type: "elseif", condition });
+      }
+    } else if (fullMatch === "#else") {
+      tokens.push({ type: "else" });
+    } else if (fullMatch === "/if") {
+      tokens.push({ type: "endif" });
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < template.length) {
+    tokens.push({ type: "text", value: template.slice(lastIndex) });
+  }
+
+  return tokens;
+}
+
+// AST node types
+type ASTNode =
+  | { type: "text"; value: string }
+  | {
+      type: "conditional";
+      branches: {
+        condition: Condition | null;
+        body: ASTNode[];
+      }[];
+    };
+
+/**
+ * Parse tokens into an AST, handling nested conditionals
+ */
+function parse(tokens: Token[]): ASTNode[] {
+  let i = 0;
+
+  function parseUntil(
+    stopTypes: Token["type"][],
+  ): { nodes: ASTNode[]; stoppedAt: Token | null } {
+    const result: ASTNode[] = [];
+
+    while (i < tokens.length) {
+      const token = tokens[i];
+
+      if (stopTypes.includes(token.type)) {
+        return { nodes: result, stoppedAt: token };
+      }
+
+      if (token.type === "text") {
+        result.push({ type: "text", value: token.value });
+        i++;
+      } else if (token.type === "if") {
+        // Start of a conditional block
+        const branches: ASTNode & { type: "conditional" } = {
+          type: "conditional",
+          branches: [],
+        };
+
+        // Parse if branch
+        const ifCondition = token.condition;
+        i++;
+        const ifBody = parseUntil(["elseif", "else", "endif"]);
+        branches.branches.push({ condition: ifCondition, body: ifBody.nodes });
+
+        // Parse elseif/else branches
+        while (ifBody.stoppedAt && ifBody.stoppedAt.type !== "endif") {
+          if (ifBody.stoppedAt.type === "elseif") {
+            const elseifCondition = ifBody.stoppedAt.condition;
+            i++;
+            const elseifBody = parseUntil(["elseif", "else", "endif"]);
+            branches.branches.push({
+              condition: elseifCondition,
+              body: elseifBody.nodes,
+            });
+            ifBody.stoppedAt = elseifBody.stoppedAt;
+          } else if (ifBody.stoppedAt.type === "else") {
+            i++;
+            const elseBody = parseUntil(["endif"]);
+            branches.branches.push({ condition: null, body: elseBody.nodes });
+            ifBody.stoppedAt = elseBody.stoppedAt;
+          }
+        }
+
+        // Skip the endif
+        if (ifBody.stoppedAt?.type === "endif") {
+          i++;
+        }
+
+        result.push(branches);
+      } else {
+        // Unexpected token, skip it
+        i++;
+      }
+    }
+
+    return { nodes: result, stoppedAt: null };
+  }
+
+  return parseUntil([]).nodes;
+}
+
+/**
+ * Evaluate an AST with a given context
+ */
+function evaluate(nodes: ASTNode[], context: TemplateContext): string {
+  let result = "";
+
+  for (const node of nodes) {
+    if (node.type === "text") {
+      result += node.value;
+    } else if (node.type === "conditional") {
+      // Find first matching branch
+      for (const branch of node.branches) {
+        if (branch.condition === null || evaluateCondition(branch.condition, context)) {
+          result += evaluate(branch.body, context);
+          break;
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 /**
  * Render a message template with conditional interpolation.
+ * Supports nested conditionals and compound conditions (and/or).
  *
  * Syntax:
- *   Variables: {{field}}
- *   Conditionals:
+ *   Conditionals (nestable):
  *     {{#if field contains "value"}}...{{/if}}
  *     {{#if field matches "/pattern/flags"}}...{{/if}}
+ *     {{#if field contains "a" and field2 contains "b"}}...{{/if}}
+ *     {{#if field contains "a" or field2 contains "b"}}...{{/if}}
  *     {{#elseif field contains "value"}}...
  *     {{#else}}...
  *
  * Example:
- *   {{#if name contains "DotA"}}@DotARole{{#else}}@Everyone{{/if}} - {{host}} is hosting {{map}}
+ *   {{#if name contains "DotA" and server contains "us"}}US DotA{{#else}}Other{{/if}}
  */
 export function renderMessage(
   template: string | undefined,
@@ -75,86 +301,7 @@ export function renderMessage(
 ): string | undefined {
   if (!template) return undefined;
 
-  let result = template;
-
-  // Process conditionals: {{#if field op "value"}}...{{/if}}
-  const conditionalPattern =
-    /\{\{#if\s+(\w+)\s+(contains|matches)\s+"([^"]*)"\}\}([\s\S]*?)\{\{\/if\}\}/g;
-
-  result = result.replace(
-    conditionalPattern,
-    (_, field, operator, value, body) => {
-      // Parse the body into branches
-      const branchPattern =
-        /\{\{#(elseif\s+(\w+)\s+(contains|matches)\s+"([^"]*)"|else)\}\}/g;
-      const branches: { condition: (() => boolean) | null; content: string }[] =
-        [];
-
-      let lastIndex = 0;
-      let branchMatch;
-      let currentContent = "";
-
-      // First branch is the if-condition
-      while ((branchMatch = branchPattern.exec(body)) !== null) {
-        currentContent = body.slice(lastIndex, branchMatch.index);
-
-        if (branches.length === 0) {
-          // This is content for the if-branch
-          branches.push({
-            condition: () => evaluateCondition(field, operator, value, context),
-            content: currentContent,
-          });
-        } else {
-          // This is content for a previous elseif/else
-          branches[branches.length - 1].content = currentContent;
-        }
-
-        const branchType = branchMatch[1];
-        if (branchType === "else") {
-          branches.push({ condition: null, content: "" });
-        } else {
-          // elseif
-          const elseifField = branchMatch[2];
-          const elseifOp = branchMatch[3];
-          const elseifValue = branchMatch[4];
-          branches.push({
-            condition: () =>
-              evaluateCondition(elseifField, elseifOp, elseifValue, context),
-            content: "",
-          });
-        }
-
-        lastIndex = branchMatch.index + branchMatch[0].length;
-      }
-
-      // Remaining content goes to the last branch (or the if-branch if no elseif/else)
-      const remainingContent = body.slice(lastIndex);
-      if (branches.length === 0) {
-        branches.push({
-          condition: () => evaluateCondition(field, operator, value, context),
-          content: remainingContent,
-        });
-      } else {
-        branches[branches.length - 1].content = remainingContent;
-      }
-
-      // Find the first matching branch
-      for (const branch of branches) {
-        if (branch.condition === null || branch.condition()) {
-          return branch.content;
-        }
-      }
-
-      return "";
-    },
-  );
-
-  // Interpolate known variables: {{field}}
-  // Unknown variables are left as-is so users can see typos
-  result = result.replace(/\{\{(\w+)\}\}/g, (match, field) => {
-    const val = context[field as keyof TemplateContext];
-    return val !== undefined ? String(val) : match;
-  });
-
-  return result;
+  const tokens = tokenize(template);
+  const ast = parse(tokens);
+  return evaluate(ast, context);
 }
