@@ -5,6 +5,7 @@ import { DiscordAPIError } from "npm:@discordjs/rest@2.3.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
 import { notifyHealthy, notifyReady } from "./sources/watchdog.ts";
+import { renderMessage } from "./template.ts";
 
 export const stats = { lastDataUpdate: 0 };
 
@@ -87,10 +88,11 @@ const onNewLobby = async (
       .filter((a) => rulesToFilter(a.rules)(lobby))
       .map(async (alert) => {
         try {
+          const renderedMessage = renderMessage(alert.message, lobby);
           const message = await discord.channels.createMessage(
             alert.channelId,
             {
-              content: alert.message,
+              content: renderedMessage,
               embeds: [getEmbed(lobby, "alive", dataSource, alert.advanced)],
               allowed_mentions: {
                 parse: [
