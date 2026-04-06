@@ -1,21 +1,64 @@
-import { stats } from "../../liveLobbies.ts";
+import { process, stats } from "../../liveLobbies.ts";
 import { db } from "../../sources/kv.ts";
 import { Handler } from "../types.ts";
 import { ansiToHTML } from "../util/ansiToHTML.ts";
 
-export const getLobbies: Handler = async (ctx) =>
-  ctx.req.headers.get("accept")?.includes("application/json")
-    ? new Response(
+export const getLobbies: Handler = async (ctx) => {
+  const allLobbies = (await db.lobbies.getMany()).result.map((r) => r.value);
+
+  if (ctx.req.headers.get("accept")?.includes("application/json")) {
+    const limit = Math.min(
+      Number(ctx.url.searchParams.get("limit")) || 100,
+      1000,
+    );
+    const offset = Math.max(
+      Number(ctx.url.searchParams.get("offset")) || 0,
+      0,
+    );
+
+    const filterKeys = ["map", "host", "name", "server"] as const;
+    type FilterKey = typeof filterKeys[number];
+    const rules: { key: FilterKey; value: string | RegExp }[] = [];
+    for (const key of filterKeys) {
+      const raw = ctx.url.searchParams.get(key);
+      if (!raw) continue;
+      const m = raw.match(/^\/(.+)\/(\w*)$/);
+      if (m) {
+        try {
+          rules.push({ key, value: new RegExp(m[1], m[2] || undefined) });
+          continue;
+        } catch { /* fall through to string */ }
+      }
+      rules.push({ key, value: raw });
+    }
+    const alive = ctx.url.searchParams.get("alive") === "1";
+    const tracked = ctx.url.searchParams.get("tracked") === "1";
+    const hasFilters = rules.length > 0 || alive || tracked;
+
+    const filtered = hasFilters
+      ? allLobbies.filter((l) =>
+        process(rules, l) &&
+        (!alive || !l.deadAt) &&
+        (!tracked || l.messages.length)
+      )
+      : allLobbies;
+
+    const page = filtered.slice(offset, offset + limit);
+    return new Response(
       JSON.stringify({
-        lobbies: (await db.lobbies.getMany()).result.map((r) => r.value),
+        lobbies: page,
+        total: allLobbies.length,
+        hasMore: offset + limit < filtered.length,
         lastUpdate: stats.lastDataUpdate,
       }),
       {
         headers: { "content-type": "application/json" },
       },
-    )
-    : new Response(
-      `<head>
+    );
+  }
+
+  return new Response(
+    `<head>
   <meta charset="UTF-8">
   <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgo=">
   <style>
@@ -43,18 +86,17 @@ export const getLobbies: Handler = async (ctx) =>
   </style>
 </head>
 <body>
-  ${await db.lobbies.getMany().then((v) =>
-        `<pre>${
-          ansiToHTML(
-            Deno.inspect(v.result.map((r) => r.value), {
-              colors: true,
-              depth: Infinity,
-              compact: true,
-              iterableLimit: Infinity,
-            }),
-          )
-        }</pre>`
-      )}
+  ${`<pre>${
+        ansiToHTML(
+          Deno.inspect(allLobbies, {
+            colors: true,
+            depth: Infinity,
+            compact: true,
+            iterableLimit: Infinity,
+          }),
+        )
+      }</pre>`}
 <body>`,
-      { headers: { "content-type": "text/html; charset=utf-8" } },
-    );
+    { headers: { "content-type": "text/html; charset=utf-8" } },
+  );
+};

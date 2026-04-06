@@ -6,8 +6,10 @@ import { getHistory } from "./routes/getHistory.ts";
 import { getAlerts } from "./routes/getAlerts.ts";
 import { getStatus } from "./routes/getStatus.ts";
 import { getLobbies } from "./routes/getLobbies.ts";
+import { getHome } from "./routes/getHome.ts";
 
 export const routes = ([
+  ["get", "/", getHome],
   ["get", "/favicon.ico", () => ""],
   ["post", "/alerts", upsertAlert],
   ["get", "/alerts/:channelId", getAlert],
