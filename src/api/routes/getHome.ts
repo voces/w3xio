@@ -223,7 +223,7 @@ export const getHome: Handler = () =>
   </style>
 </head>
 <body>
-  <h1>w3xio</h1>
+  <h1>Live Lobbies</h1>
   <p>A Discord bot that notifies your channel when a Warcraft III lobby matching your filter goes live.</p>
   <p><a href="/status">View live lobbies &rarr;</a></p>
 

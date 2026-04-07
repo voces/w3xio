@@ -67,9 +67,10 @@ export const getStatus: Handler = () => {
   }
   body { margin: 0; padding: 24px; max-width: 1200px; margin: 0 auto }
   header { margin-bottom: 20px }
-  header h1 { color: #fff; font-size: 20px; margin: 0 0 8px }
-  header a { color: #5b9bd5; text-decoration: none; font-size: 13px }
-  header a:hover { color: #7bc0ff }
+  header h1 { color: #fff; font-size: 20px; margin: 0 0 8px; font-weight: 500 }
+  header h1 a { color: #fff; text-decoration: none }
+  header h1 a:hover { color: #7bc0ff }
+  header h1 .breadcrumb { color: #666; font-weight: 400 }
   .meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: #666; margin-bottom: 16px }
   .meta span { white-space: nowrap }
   .meta .up { color: #4ec97a }
@@ -225,14 +226,13 @@ export const getStatus: Handler = () => {
 </head>
 <body>
   <header>
-    <h1>w3xio <span style="color:#666;font-weight:normal">/ live lobbies</span></h1>
-    <a href="/">&larr; Setup guide</a>
+    <h1><a href="/">Live Lobbies</a> <span class="breadcrumb">&rsaquo; Status</span></h1>
   </header>
   <div class="meta">
-    <span><a href="https://wc3stats.com/gamelist">wc3stats</a> <span class="${wc3StatsStatus}">${wc3StatsStatus}</span></span>
+    <span><a href="https://wc3stats.com/gamelist" target="_blank" rel="noopener">wc3stats &#11194;</a> <span class="${wc3StatsStatus}">${wc3StatsStatus}</span></span>
     ${
       showWc3Maps
-        ? `<span><a href="https://wc3maps.com/live">wc3maps</a> <span class="${wc3MapsStatus}">${wc3MapsStatus}</span></span>`
+        ? `<span><a href="https://wc3maps.com/live" target="_blank" rel="noopener">wc3maps &#11194;</a> <span class="${wc3MapsStatus}">${wc3MapsStatus}</span></span>`
         : ""
     }
     <span>Updated <span id="lastUpdate">${
