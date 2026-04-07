@@ -35,20 +35,30 @@ export const getLobbies: Handler = async (ctx) => {
     const tracked = ctx.url.searchParams.get("tracked") === "1";
     const hasFilters = rules.length > 0 || alive || tracked;
 
-    const filtered = hasFilters
-      ? allLobbies.filter((l) =>
-        process(rules, l) &&
-        (!alive || !l.deadAt) &&
-        (!tracked || l.messages.length)
-      )
-      : allLobbies;
+    const need = offset + limit + 1;
+    let collected: typeof allLobbies;
+    if (!hasFilters) {
+      collected = allLobbies.slice(0, need);
+    } else {
+      collected = [];
+      for (const l of allLobbies) {
+        if (
+          process(rules, l) &&
+          (!alive || !l.deadAt) &&
+          (!tracked || l.messages.length)
+        ) {
+          collected.push(l);
+          if (collected.length >= need) break;
+        }
+      }
+    }
 
-    const page = filtered.slice(offset, offset + limit);
+    const page = collected.slice(offset, offset + limit);
     return new Response(
       JSON.stringify({
         lobbies: page,
         total: allLobbies.length,
-        hasMore: offset + limit < filtered.length,
+        hasMore: collected.length > offset + limit,
         lastUpdate: stats.lastDataUpdate,
       }),
       {
