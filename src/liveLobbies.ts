@@ -12,6 +12,16 @@ export const stats = { lastDataUpdate: 0 };
 let cachedLobbies: Lobby[] = [];
 export const getCachedLobbies = () => cachedLobbies;
 
+let lobbyCache: Map<string, Lobby> | undefined;
+const setLobby = async (lobby: Lobby) => {
+  await db.lobbies.set(lobby.id, lobby, { overwrite: true });
+  lobbyCache?.set(lobby.id, lobby);
+};
+const deleteLobby = async (id: string) => {
+  await db.lobbies.delete(id);
+  lobbyCache?.delete(id);
+};
+
 const UPDATES_PER_MINUTE = 6;
 // Load shedding only applies to updates of alive or missing lobbies; creation
 // and deads always get sent
@@ -333,6 +343,7 @@ const updateLobbies = async () => {
     return console.warn(new Date(), "Found no lobbies");
   }
 
+  lobbyCache = new Map(oldLobbies.map((l) => [l.id, l]));
   let news = 0;
   let updates = 0;
   let found = 0;
@@ -351,14 +362,14 @@ const updateLobbies = async () => {
     // skipping chance of matching the replay
     if (oldLobby?.dead) {
       cleared++;
-      await db.lobbies.delete(oldLobby.id);
+      await deleteLobby(oldLobby.id);
       oldLobby = undefined;
     }
 
     if (!oldLobby) {
       newLobby.messages = await onNewLobby(newLobby, alerts, dataSource);
       news++;
-      await db.lobbies.set(newLobby.id, newLobby, { overwrite: true });
+      await setLobby(newLobby);
     } else {
       newLobby.messages = oldLobby.messages;
       if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
@@ -366,7 +377,7 @@ const updateLobbies = async () => {
         if (oldLobby.deadAt) found++;
         else updates++;
       } else stable++;
-      await db.lobbies.set(newLobby.id, newLobby, { overwrite: true });
+      await setLobby(newLobby);
     }
   }
 
@@ -389,7 +400,7 @@ const updateLobbies = async () => {
             alerts,
             matching[replay].id,
           );
-          await db.lobbies.delete(oldLobby.id);
+          await deleteLobby(oldLobby.id);
           continue;
         }
       }
@@ -404,7 +415,7 @@ const updateLobbies = async () => {
         disappeared++;
         // Turn lobby orange immediately after disappearing from list; turn red after 5 minutes
         oldLobby.deadAt = Date.now() + 1000 * 60 * 5;
-        await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
+        await setLobby(oldLobby);
       } else if (oldLobby.deadAt <= Date.now()) {
         if (!oldLobby.dead) {
           await onDeadLobby(oldLobby, dataSource, alerts);
@@ -412,10 +423,10 @@ const updateLobbies = async () => {
           if (oldLobby.messages.length) {
             pendingReplay++;
             oldLobby.dead = true;
-            await db.lobbies.set(oldLobby.id, oldLobby, { overwrite: true });
+            await setLobby(oldLobby);
           } else {
             cleared++;
-            await db.lobbies.delete(oldLobby.id);
+            await deleteLobby(oldLobby.id);
           }
         } else if (
           // Keep lobbies around for 24 hours in case a replay is posted
@@ -423,7 +434,7 @@ const updateLobbies = async () => {
           !oldLobby.messages.length
         ) {
           cleared++;
-          await db.lobbies.delete(oldLobby.id);
+          await deleteLobby(oldLobby.id);
         } else pendingReplay++;
       } else missing++;
     }
@@ -461,7 +472,7 @@ const updateLobbies = async () => {
     "seconds.",
   );
 
-  cachedLobbies = (await db.lobbies.getMany()).result.map((v) => v.value);
+  cachedLobbies = [...lobbyCache.values()];
   notifyHealthy();
 };
 
