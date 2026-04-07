@@ -1,5 +1,4 @@
-import { stats } from "../../liveLobbies.ts";
-import { db } from "../../sources/kv.ts";
+import { getCachedLobbies, stats } from "../../liveLobbies.ts";
 import { getDataSource, Lobby } from "../../sources/lobbies.ts";
 import { Handler } from "../types.ts";
 
@@ -39,16 +38,14 @@ const lobbySort = (a: Lobby, b: Lobby) =>
     ? -1
     : 0;
 
-export const getStatus: Handler = async () => {
+export const getStatus: Handler = () => {
   const dataSource = getDataSource();
   const wc3StatsStatus = (dataSource === "none" || dataSource === "wc3maps")
     ? "down"
     : "up";
   const showWc3Maps = dataSource === "wc3maps" || dataSource === "none";
   const wc3MapsStatus = dataSource === "wc3maps" ? "up" : "down";
-  const allLobbies = await db.lobbies.getMany().then((v) =>
-    v.result.map((v) => v.value).sort(lobbySort)
-  );
+  const allLobbies = [...getCachedLobbies()].sort(lobbySort);
   const lobbies = allLobbies.slice(0, 100);
 
   return new Response(

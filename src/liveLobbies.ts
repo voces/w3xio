@@ -9,6 +9,9 @@ import { renderMessage } from "./template.ts";
 
 export const stats = { lastDataUpdate: 0 };
 
+let cachedLobbies: Lobby[] = [];
+export const getCachedLobbies = () => cachedLobbies;
+
 const UPDATES_PER_MINUTE = 6;
 // Load shedding only applies to updates of alive or missing lobbies; creation
 // and deads always get sent
@@ -458,6 +461,7 @@ const updateLobbies = async () => {
     "seconds.",
   );
 
+  cachedLobbies = (await db.lobbies.getMany()).result.map((v) => v.value);
   notifyHealthy();
 };
 

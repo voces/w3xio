@@ -1,10 +1,9 @@
-import { process, stats } from "../../liveLobbies.ts";
-import { db } from "../../sources/kv.ts";
+import { getCachedLobbies, process, stats } from "../../liveLobbies.ts";
 import { Handler } from "../types.ts";
 import { ansiToHTML } from "../util/ansiToHTML.ts";
 
-export const getLobbies: Handler = async (ctx) => {
-  const allLobbies = (await db.lobbies.getMany()).result.map((r) => r.value);
+export const getLobbies: Handler = (ctx) => {
+  const allLobbies = getCachedLobbies();
 
   if (ctx.req.headers.get("accept")?.includes("application/json")) {
     const limit = Math.min(
