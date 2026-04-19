@@ -7,9 +7,11 @@ import { getAlerts } from "./routes/getAlerts.ts";
 import { getStatus } from "./routes/getStatus.ts";
 import { getLobbies } from "./routes/getLobbies.ts";
 import { getHome } from "./routes/getHome.ts";
+import { deploy } from "./routes/deploy.ts";
 
 export const routes = ([
   ["get", "/", getHome],
+  ["post", "/deploy", deploy],
   ["get", "/favicon.ico", () => ""],
   ["post", "/alerts", upsertAlert],
   ["get", "/alerts/:channelId", getAlert],
