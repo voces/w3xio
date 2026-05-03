@@ -125,6 +125,136 @@ export const getStatus: Handler = () => {
   .filter-row td { padding: 2px 10px 8px; border-bottom: 1px solid #2a2a2a }
   .status-dot { font-size: 10px }
   .players { font-variant-numeric: tabular-nums }
+  .checkbox-label-text { display: none }
+  @media (max-width: 720px) {
+    body { padding: 16px }
+    .meta { gap: 10px; margin-bottom: 14px }
+    table { table-layout: auto; display: block }
+    thead { position: static; background: transparent; display: block }
+    thead tr.col-headers { display: none }
+    thead .filter-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      padding: 0 0 16px;
+      border-bottom: 1px solid #2a2a2a;
+      margin-bottom: 4px;
+    }
+    thead .filter-row td {
+      padding: 0;
+      border: none;
+      width: auto;
+    }
+    thead .filter-row td.spacer { display: none }
+    thead .filter-row td input[type=text] {
+      background: #1c1c1c;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: 10px 12px;
+      width: 100%;
+      color: #ddd;
+      font-size: 13px;
+    }
+    thead .filter-row td input[type=text]::placeholder { color: #666 }
+    thead .filter-row td input[type=text]:focus {
+      border-color: #5b9bd5;
+      background: #1f2329;
+      outline: none;
+    }
+    thead .filter-row td.checkbox-cell {
+      background: #1c1c1c;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      padding: 0;
+    }
+    thead .filter-row td.checkbox-cell label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      color: #aaa;
+      font-size: 13px;
+    }
+    thead .filter-row td.checkbox-cell:has(input:checked) {
+      border-color: #5b9bd5;
+      background: #1c2530;
+    }
+    thead .filter-row td.checkbox-cell:has(input:checked) label { color: #e5e9ef }
+    thead .filter-row td.checkbox-cell input[type=checkbox] {
+      flex: 0 0 16px;
+      margin: 0;
+    }
+    thead .filter-row td.checkbox-cell .checkbox-label-text {
+      display: inline;
+      flex: 1 1 auto;
+    }
+    tbody { display: block }
+    tbody tr {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #1e1e1e;
+      column-gap: 8px;
+      row-gap: 2px;
+    }
+    tbody tr:hover td { background: transparent }
+    tbody td {
+      padding: 0;
+      border: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      width: auto;
+      flex: 0 0 auto;
+    }
+    tbody .col-status {
+      order: 1;
+      flex: 0 0 20px; width: 20px;
+      align-self: center;
+      text-align: center;
+    }
+    tbody .col-map {
+      order: 2;
+      flex: 1 1 0; min-width: 0;
+      color: #fff; font-weight: 500; font-size: 14px;
+      width: auto;
+    }
+    tbody .col-tracked {
+      order: 3;
+      align-self: center; font-size: 12px;
+      min-width: 16px; text-align: right;
+      width: auto;
+    }
+    tbody .col-name {
+      order: 4;
+      flex: 1 1 100%;
+      margin-left: 28px;
+      color: #999; font-size: 12px;
+      width: auto;
+    }
+    tbody .col-host {
+      order: 5;
+      flex: 1 1 auto; min-width: 0;
+      margin-left: 28px;
+      font-size: 11px; color: #888;
+      width: auto;
+    }
+    tbody .col-realm { order: 6; font-size: 11px; color: #888; width: auto }
+    tbody .col-players { order: 7; font-size: 11px; color: #888; width: auto }
+    tbody .col-created {
+      order: 8;
+      font-size: 11px; color: #888;
+      width: auto;
+    }
+    tbody .col-players::before,
+    tbody .col-created::before {
+      content: "\\00B7";
+      color: #444;
+      margin-right: 6px;
+    }
+  }
   </style>
   <script type="module">
   import morphdom from "https://esm.sh/morphdom";
@@ -250,7 +380,7 @@ export const getStatus: Handler = () => {
   </div>
   <table>
     <thead>
-      <tr>
+      <tr class="col-headers">
         <th class="col-map">File</th>
         <th class="col-name">Game name</th>
         <th class="col-host">Host</th>
@@ -265,10 +395,10 @@ export const getStatus: Handler = () => {
         <td><input type="text" id="name" placeholder="filter name..." oninput="update()" /></td>
         <td><input type="text" id="host" placeholder="filter host..." oninput="update()" /></td>
         <td><input type="text" id="server" placeholder="us, eu, kr" oninput="update()" /></td>
-        <td></td>
-        <td></td>
-        <td><input type="checkbox" id="alive" oninput="update()" title="Alive only" /></td>
-        <td><input type="checkbox" id="tracked" oninput="update()" title="Tracked only" /></td>
+        <td class="spacer"></td>
+        <td class="spacer"></td>
+        <td class="checkbox-cell"><label><input type="checkbox" id="alive" oninput="update()" title="Alive only" /><span class="checkbox-label-text">Alive only</span></label></td>
+        <td class="checkbox-cell"><label><input type="checkbox" id="tracked" oninput="update()" title="Tracked only" /><span class="checkbox-label-text">Tracked only</span></label></td>
       </tr>
     </thead>
     <tbody>
