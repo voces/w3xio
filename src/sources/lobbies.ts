@@ -48,6 +48,15 @@ let dataSource: DataSource = "init";
 let strikeLastAndersMessage: (() => void) | void;
 export const getDataSource = () => dataSource;
 
+let wc3statsUp = false;
+let wc3mapsUp = false;
+let wc3mapsChecked = false;
+export const getSourceLiveness = () => ({
+  wc3statsUp,
+  wc3mapsUp,
+  wc3mapsChecked,
+});
+
 const ensureDataSource = (newDatasSource: DataSource) => {
   if (dataSource === newDatasSource) return;
   const oldDataSource = dataSource;
@@ -94,7 +103,10 @@ export const getLobbies = async (): Promise<
       return [];
     });
 
-  if (wc3StatsLobbies.length > 0) {
+  wc3statsUp = wc3StatsLobbies.length > 0;
+
+  if (wc3statsUp) {
+    wc3mapsChecked = false;
     ensureDataSource("wc3stats");
     return { lobbies: wc3StatsLobbies, dataSource };
   }
@@ -121,7 +133,9 @@ export const getLobbies = async (): Promise<
       console.error(new Date(), err);
       return [];
     });
-  if (wc3MapsLobbies.length > 0) {
+  wc3mapsChecked = true;
+  wc3mapsUp = wc3MapsLobbies.length > 0;
+  if (wc3mapsUp) {
     failedTries = 0;
     if (dataSource !== "wc3maps") ensureDataSource("wc3maps");
   } else {

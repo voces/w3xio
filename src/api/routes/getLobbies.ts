@@ -1,4 +1,5 @@
 import { getCachedLobbies, process, stats } from "../../liveLobbies.ts";
+import { getSourceLiveness } from "../../sources/lobbies.ts";
 import { Handler } from "../types.ts";
 import { ansiToHTML } from "../util/ansiToHTML.ts";
 
@@ -59,6 +60,7 @@ export const getLobbies: Handler = (ctx) => {
         total: allLobbies.length,
         hasMore: collected.length > offset + limit,
         lastUpdate: stats.lastDataUpdate,
+        liveness: getSourceLiveness(),
       }),
       {
         headers: { "content-type": "application/json" },

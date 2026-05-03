@@ -1,5 +1,5 @@
 import { getCachedLobbies, stats } from "../../liveLobbies.ts";
-import { getDataSource, Lobby } from "../../sources/lobbies.ts";
+import { getSourceLiveness, Lobby } from "../../sources/lobbies.ts";
 import { Handler } from "../types.ts";
 
 export const formatTime = (
@@ -39,12 +39,7 @@ const lobbySort = (a: Lobby, b: Lobby) =>
     : 0;
 
 export const getStatus: Handler = () => {
-  const dataSource = getDataSource();
-  const wc3StatsStatus = (dataSource === "none" || dataSource === "wc3maps")
-    ? "down"
-    : "up";
-  const showWc3Maps = dataSource === "wc3maps" || dataSource === "none";
-  const wc3MapsStatus = dataSource === "wc3maps" ? "up" : "down";
+  const liveness = getSourceLiveness();
   const allLobbies = [...getCachedLobbies()].sort(lobbySort);
   const lobbies = allLobbies.slice(0, 100);
 
@@ -140,6 +135,7 @@ export const getStatus: Handler = () => {
   let total = ${allLobbies.length};
   let hasMore = ${allLobbies.length > 100};
   let lastUpdate = ${stats.lastDataUpdate ?? "undefined"};
+  let liveness = ${JSON.stringify(liveness)};
   let fetching = false;
   let prevFilterKey = "";
 
@@ -167,6 +163,7 @@ export const getStatus: Handler = () => {
     total = data.total;
     hasMore = data.hasMore;
     lastUpdate = data.lastUpdate;
+    liveness = data.liveness;
   };
 
   const refresh = () => fetchPage(0, lobbies.length || PAGE).then(render);
@@ -191,6 +188,15 @@ export const getStatus: Handler = () => {
   const render = () => {
     document.getElementById("lastUpdate").textContent = formatTime(Math.round(lastUpdate/1000), "long");
     document.getElementById("lobbyCount").textContent = total;
+    const wc3StatsStatus = liveness.wc3statsUp ? "up" : "down";
+    const wc3MapsStatus = liveness.wc3mapsUp ? "up" : "down";
+    const wc3StatsEl = document.getElementById("wc3statsStatus");
+    wc3StatsEl.textContent = wc3StatsStatus;
+    wc3StatsEl.className = wc3StatsStatus;
+    const wc3MapsEl = document.getElementById("wc3mapsStatus");
+    wc3MapsEl.textContent = wc3MapsStatus;
+    wc3MapsEl.className = wc3MapsStatus;
+    document.getElementById("wc3mapsBadge").style.display = liveness.wc3mapsChecked ? "" : "none";
 
     morphdom(document.querySelector("tbody"), \`<tbody>\${lobbies.map(l => \`<tr id="\${l.id}">
       <td class="col-map" title="\${l.map}">\${l.map}</td>
@@ -229,12 +235,14 @@ export const getStatus: Handler = () => {
     <h1><a href="/">Live Lobbies</a> <span class="breadcrumb">&rsaquo; Status</span></h1>
   </header>
   <div class="meta">
-    <span><a href="https://wc3stats.com/gamelist" target="_blank" rel="noopener">wc3stats &#11194;</a> <span class="${wc3StatsStatus}">${wc3StatsStatus}</span></span>
-    ${
-      showWc3Maps
-        ? `<span><a href="https://wc3maps.com/live" target="_blank" rel="noopener">wc3maps &#11194;</a> <span class="${wc3MapsStatus}">${wc3MapsStatus}</span></span>`
-        : ""
-    }
+    <span><a href="https://wc3stats.com/gamelist" target="_blank" rel="noopener">wc3stats &#11194;</a> <span id="wc3statsStatus" class="${
+      liveness.wc3statsUp ? "up" : "down"
+    }">${liveness.wc3statsUp ? "up" : "down"}</span></span>
+    <span id="wc3mapsBadge" style="${
+      liveness.wc3mapsChecked ? "" : "display:none"
+    }"><a href="https://wc3maps.com/live" target="_blank" rel="noopener">wc3maps &#11194;</a> <span id="wc3mapsStatus" class="${
+      liveness.wc3mapsUp ? "up" : "down"
+    }">${liveness.wc3mapsUp ? "up" : "down"}</span></span>
     <span>Updated <span id="lastUpdate">${
       formatTime(Math.round(stats.lastDataUpdate / 1000), "long")
     }</span></span>
