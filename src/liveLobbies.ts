@@ -472,7 +472,15 @@ const updateLobbies = async () => {
     "seconds.",
   );
 
-  cachedLobbies = [...lobbyCache.values()];
+  cachedLobbies = [...lobbyCache.values()].sort((a, b) =>
+    (a.created && b.created)
+      ? b.created - a.created
+      : a.created
+      ? 1
+      : b.created
+      ? -1
+      : 0
+  );
   notifyHealthy();
 };
 
