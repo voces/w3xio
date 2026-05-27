@@ -50,24 +50,22 @@ export const getLobbies: Handler = (ctx) => {
     0,
   );
 
-  const need = offset + limit + 1;
-  let collected: typeof allLobbies;
+  let matched: typeof allLobbies;
+  let total: number;
   if (!filters.hasFilters) {
-    collected = allLobbies.slice(0, need);
+    matched = allLobbies;
+    total = allLobbies.length;
   } else {
-    collected = [];
-    for (const l of allLobbies) {
-      if (matches(l, filters)) {
-        collected.push(l);
-        if (collected.length >= need) break;
-      }
-    }
+    matched = allLobbies.filter((l) => matches(l, filters));
+    total = matched.length;
   }
 
+  const page = matched.slice(offset, offset + limit);
   const payload = {
-    lobbies: collected.slice(offset, offset + limit),
-    total: allLobbies.length,
-    hasMore: collected.length > offset + limit,
+    lobbies: page,
+    total,
+    totalUnfiltered: allLobbies.length,
+    hasMore: offset + page.length < total,
     lastUpdate: stats.lastDataUpdate,
     liveness: getSourceLiveness(),
   };
