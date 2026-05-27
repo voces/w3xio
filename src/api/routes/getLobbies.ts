@@ -41,49 +41,42 @@ const matches = (
 export const getLobbies: Handler = (ctx) => {
   const allLobbies = getCachedLobbies();
   const filters = parseFilters(ctx.url.searchParams);
+  const limit = Math.min(
+    Number(ctx.url.searchParams.get("limit")) || 100,
+    1000,
+  );
+  const offset = Math.max(
+    Number(ctx.url.searchParams.get("offset")) || 0,
+    0,
+  );
 
-  if (ctx.req.headers.get("accept")?.includes("application/json")) {
-    const limit = Math.min(
-      Number(ctx.url.searchParams.get("limit")) || 100,
-      1000,
-    );
-    const offset = Math.max(
-      Number(ctx.url.searchParams.get("offset")) || 0,
-      0,
-    );
-
-    const need = offset + limit + 1;
-    let collected: typeof allLobbies;
-    if (!filters.hasFilters) {
-      collected = allLobbies.slice(0, need);
-    } else {
-      collected = [];
-      for (const l of allLobbies) {
-        if (matches(l, filters)) {
-          collected.push(l);
-          if (collected.length >= need) break;
-        }
+  const need = offset + limit + 1;
+  let collected: typeof allLobbies;
+  if (!filters.hasFilters) {
+    collected = allLobbies.slice(0, need);
+  } else {
+    collected = [];
+    for (const l of allLobbies) {
+      if (matches(l, filters)) {
+        collected.push(l);
+        if (collected.length >= need) break;
       }
     }
-
-    const page = collected.slice(offset, offset + limit);
-    return new Response(
-      JSON.stringify({
-        lobbies: page,
-        total: allLobbies.length,
-        hasMore: collected.length > offset + limit,
-        lastUpdate: stats.lastDataUpdate,
-        liveness: getSourceLiveness(),
-      }),
-      {
-        headers: { "content-type": "application/json" },
-      },
-    );
   }
 
-  const htmlLobbies = filters.hasFilters
-    ? allLobbies.filter((l) => matches(l, filters))
-    : allLobbies;
+  const payload = {
+    lobbies: collected.slice(offset, offset + limit),
+    total: allLobbies.length,
+    hasMore: collected.length > offset + limit,
+    lastUpdate: stats.lastDataUpdate,
+    liveness: getSourceLiveness(),
+  };
+
+  if (ctx.req.headers.get("accept")?.includes("application/json")) {
+    return new Response(JSON.stringify(payload), {
+      headers: { "content-type": "application/json" },
+    });
+  }
 
   return new Response(
     `<head>
@@ -116,7 +109,7 @@ export const getLobbies: Handler = (ctx) => {
 <body>
   ${`<pre>${
         ansiToHTML(
-          Deno.inspect(htmlLobbies, {
+          Deno.inspect(payload, {
             colors: true,
             depth: Infinity,
             compact: true,
