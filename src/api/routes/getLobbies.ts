@@ -1,10 +1,46 @@
 import { getCachedLobbies, process, stats } from "../../liveLobbies.ts";
-import { getSourceLiveness } from "../../sources/lobbies.ts";
+import { getSourceLiveness, Lobby } from "../../sources/lobbies.ts";
 import { Handler } from "../types.ts";
 import { ansiToHTML } from "../util/ansiToHTML.ts";
 
+const filterKeys = ["map", "host", "name", "server"] as const;
+type FilterKey = typeof filterKeys[number];
+
+const parseFilters = (params: URLSearchParams) => {
+  const rules: { key: FilterKey; value: string | RegExp }[] = [];
+  for (const key of filterKeys) {
+    const raw = params.get(key);
+    if (!raw) continue;
+    const m = raw.match(/^\/(.+)\/(\w*)$/);
+    if (m) {
+      try {
+        rules.push({ key, value: new RegExp(m[1], m[2] || undefined) });
+        continue;
+      } catch { /* fall through to string */ }
+    }
+    rules.push({ key, value: raw });
+  }
+  const alive = params.get("alive") === "1";
+  const tracked = params.get("tracked") === "1";
+  return {
+    rules,
+    alive,
+    tracked,
+    hasFilters: rules.length > 0 || alive || tracked,
+  };
+};
+
+const matches = (
+  lobby: Lobby,
+  filters: ReturnType<typeof parseFilters>,
+): boolean =>
+  process(filters.rules, lobby) &&
+  (!filters.alive || !lobby.deadAt) &&
+  (!filters.tracked || !!lobby.messages.length);
+
 export const getLobbies: Handler = (ctx) => {
   const allLobbies = getCachedLobbies();
+  const filters = parseFilters(ctx.url.searchParams);
 
   if (ctx.req.headers.get("accept")?.includes("application/json")) {
     const limit = Math.min(
@@ -16,37 +52,14 @@ export const getLobbies: Handler = (ctx) => {
       0,
     );
 
-    const filterKeys = ["map", "host", "name", "server"] as const;
-    type FilterKey = typeof filterKeys[number];
-    const rules: { key: FilterKey; value: string | RegExp }[] = [];
-    for (const key of filterKeys) {
-      const raw = ctx.url.searchParams.get(key);
-      if (!raw) continue;
-      const m = raw.match(/^\/(.+)\/(\w*)$/);
-      if (m) {
-        try {
-          rules.push({ key, value: new RegExp(m[1], m[2] || undefined) });
-          continue;
-        } catch { /* fall through to string */ }
-      }
-      rules.push({ key, value: raw });
-    }
-    const alive = ctx.url.searchParams.get("alive") === "1";
-    const tracked = ctx.url.searchParams.get("tracked") === "1";
-    const hasFilters = rules.length > 0 || alive || tracked;
-
     const need = offset + limit + 1;
     let collected: typeof allLobbies;
-    if (!hasFilters) {
+    if (!filters.hasFilters) {
       collected = allLobbies.slice(0, need);
     } else {
       collected = [];
       for (const l of allLobbies) {
-        if (
-          process(rules, l) &&
-          (!alive || !l.deadAt) &&
-          (!tracked || l.messages.length)
-        ) {
+        if (matches(l, filters)) {
           collected.push(l);
           if (collected.length >= need) break;
         }
@@ -67,6 +80,10 @@ export const getLobbies: Handler = (ctx) => {
       },
     );
   }
+
+  const htmlLobbies = filters.hasFilters
+    ? allLobbies.filter((l) => matches(l, filters))
+    : allLobbies;
 
   return new Response(
     `<head>
@@ -99,7 +116,7 @@ export const getLobbies: Handler = (ctx) => {
 <body>
   ${`<pre>${
         ansiToHTML(
-          Deno.inspect(allLobbies, {
+          Deno.inspect(htmlLobbies, {
             colors: true,
             depth: Infinity,
             compact: true,
