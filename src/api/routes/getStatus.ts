@@ -263,6 +263,7 @@ export const getStatus: Handler = () => {
 
   let lobbies = ${JSON.stringify(lobbies)};
   let total = ${allLobbies.length};
+  let totalUnfiltered = ${allLobbies.length};
   let hasMore = ${allLobbies.length > 100};
   let lastUpdate = ${stats.lastDataUpdate ?? "undefined"};
   let liveness = ${JSON.stringify(liveness)};
@@ -291,12 +292,13 @@ export const getStatus: Handler = () => {
       lobbies = lobbies.concat(data.lobbies.sort(lobbySort));
     }
     total = data.total;
+    totalUnfiltered = data.totalUnfiltered;
     hasMore = data.hasMore;
     lastUpdate = data.lastUpdate;
     liveness = data.liveness;
   };
 
-  const refresh = () => fetchPage(0, lobbies.length || PAGE).then(render);
+  const refresh = () => fetchPage(0, Math.max(lobbies.length, PAGE)).then(render);
 
   const fetchMore = async () => {
     if (fetching || !hasMore) return;
@@ -317,7 +319,7 @@ export const getStatus: Handler = () => {
 
   const render = () => {
     document.getElementById("lastUpdate").textContent = formatTime(Math.round(lastUpdate/1000), "long");
-    document.getElementById("lobbyCount").textContent = total;
+    document.getElementById("lobbyCount").textContent = total === totalUnfiltered ? total : (total + " of " + totalUnfiltered);
     const wc3StatsStatus = liveness.wc3statsUp ? "up" : "down";
     const wc3MapsStatus = liveness.wc3mapsUp ? "up" : "down";
     const wc3StatsEl = document.getElementById("wc3statsStatus");
