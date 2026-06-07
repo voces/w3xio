@@ -19,7 +19,14 @@ const DAYS_KEPT = 400; // covers the 365d window
 
 type Bucket = { messages: number; updates: number; servers: string[] };
 
-const empty = (): Bucket => ({ messages: 0, updates: 0, servers: [] });
+// Buckets written before the "lobbies" -> "messages" rename stored a `lobbies`
+// field; coalesce so existing data carries over instead of reading as NaN.
+type StoredBucket = Partial<Bucket> & { lobbies?: number };
+const normalize = (v: StoredBucket | null | undefined): Bucket => ({
+  messages: v?.messages ?? v?.lobbies ?? 0,
+  updates: v?.updates ?? 0,
+  servers: v?.servers ?? [],
+});
 
 const hourKey = (index: number) => ["metrics", "hour", index];
 const dayKey = (index: number) => ["metrics", "day", index];
@@ -64,9 +71,9 @@ export const recordMetrics = async (
     const day = Math.floor(now / DAY);
 
     const [hourB, dayB, allB] = await Promise.all([
-      kv.get<Bucket>(hourKey(hour)),
-      kv.get<Bucket>(dayKey(day)),
-      kv.get<Bucket>(allKey),
+      kv.get<StoredBucket>(hourKey(hour)),
+      kv.get<StoredBucket>(dayKey(day)),
+      kv.get<StoredBucket>(allKey),
     ]);
 
     const sample: Bucket = {
@@ -76,9 +83,9 @@ export const recordMetrics = async (
     };
 
     await Promise.all([
-      kv.set(hourKey(hour), merge(hourB.value ?? empty(), sample)),
-      kv.set(dayKey(day), merge(dayB.value ?? empty(), sample)),
-      kv.set(allKey, merge(allB.value ?? empty(), sample)),
+      kv.set(hourKey(hour), merge(normalize(hourB.value), sample)),
+      kv.set(dayKey(day), merge(normalize(dayB.value), sample)),
+      kv.set(allKey, merge(normalize(allB.value), sample)),
     ]);
 
     // A freshly created hour bucket means the clock rolled over — a good, cheap
@@ -109,8 +116,8 @@ const readBuckets = async (
   prefix: Deno.KvKey,
 ): Promise<Map<number, Bucket>> => {
   const map = new Map<number, Bucket>();
-  for await (const e of kv.list<Bucket>({ prefix }, { batchSize: 500 })) {
-    map.set(e.key.at(-1) as number, e.value);
+  for await (const e of kv.list<StoredBucket>({ prefix }, { batchSize: 500 })) {
+    map.set(e.key.at(-1) as number, normalize(e.value));
   }
   return map;
 };
@@ -130,7 +137,7 @@ export const getMetricsSummary = async (): Promise<MetricsWindow[]> => {
   const [hourly, daily, all] = await Promise.all([
     readBuckets(["metrics", "hour"]),
     readBuckets(["metrics", "day"]),
-    kv.get<Bucket>(allKey),
+    kv.get<StoredBucket>(allKey),
   ]);
 
   const summary: MetricsWindow[] = windows.map(
@@ -152,7 +159,7 @@ export const getMetricsSummary = async (): Promise<MetricsWindow[]> => {
     },
   );
 
-  const allB = all.value ?? empty();
+  const allB = normalize(all.value);
   summary.push({
     label: "All",
     messages: allB.messages,
