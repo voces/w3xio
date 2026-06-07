@@ -361,7 +361,11 @@ const updateLobbies = async () => {
   let pendingReplay = 0;
   let cleared = 0;
   let linked = 0;
-  const newServers = new Set<string>();
+  // Metrics only count work we actually emit to Discord: lobbies we echoed to at
+  // least one channel and updates that edited at least one live message.
+  let echoedLobbies = 0;
+  let echoedUpdates = 0;
+  const echoedServers = new Set<string>();
 
   for (const newLobby of newLobbies) {
     let oldLobby = oldLobbies.find((l) => l.id === newLobby.id);
@@ -377,14 +381,20 @@ const updateLobbies = async () => {
     if (!oldLobby) {
       newLobby.messages = await onNewLobby(newLobby, alerts, dataSource);
       news++;
-      newServers.add(newLobby.server);
+      if (newLobby.messages.length) {
+        echoedLobbies++;
+        echoedServers.add(newLobby.server);
+      }
       await setLobby(newLobby);
     } else {
       newLobby.messages = oldLobby.messages;
       if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
         await onUpdateLobby(newLobby, dataSource, alerts);
         if (oldLobby.deadAt) found++;
-        else updates++;
+        else {
+          updates++;
+          if (newLobby.messages.length) echoedUpdates++;
+        }
       } else stable++;
       await setLobby(newLobby);
     }
@@ -482,9 +492,9 @@ const updateLobbies = async () => {
   );
 
   await recordMetrics({
-    lobbies: news,
-    updates,
-    servers: [...newServers],
+    lobbies: echoedLobbies,
+    updates: echoedUpdates,
+    servers: [...echoedServers],
   });
 
   cachedLobbies = [...lobbyCache.values()].sort((a, b) =>
