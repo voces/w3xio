@@ -68,6 +68,11 @@ const ensureDataSource = (newDatasSource: DataSource) => {
   })
     .then((v) => {
       console.log(new Date(), v.description);
+      // Don't alert on the initial source detection after a (re)boot; only
+      // notify when the source actually changes at runtime. dataSource lives
+      // in memory and resets to "init" on every start, so without this a
+      // restart loop spams the admin with "Lobby feed: wc3maps.com".
+      if (oldDataSource === "init") return;
       messageAdmin(v.description);
       if (oldDataSource === "wc3stats") {
         messageAnders("wc3stats down!").then((strike) =>
@@ -88,7 +93,9 @@ let failedTries = 0;
 export const getLobbies = async (): Promise<
   { lobbies: Lobby[]; dataSource: DataSource }
 > => {
-  const wc3StatsLobbies = await fetch("https://api.wc3stats.com/gamelist")
+  const wc3StatsLobbies = await fetch("https://api.wc3stats.com/gamelist", {
+    signal: AbortSignal.timeout(5000),
+  })
     .then((r) => r.json())
     .then((r) => {
       const list = zGameList.parse(r).body;
@@ -111,7 +118,9 @@ export const getLobbies = async (): Promise<
     return { lobbies: wc3StatsLobbies, dataSource };
   }
 
-  const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
+  const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies", {
+    signal: AbortSignal.timeout(5000),
+  })
     .then(async (r) => {
       const text = await r.text();
       try {
