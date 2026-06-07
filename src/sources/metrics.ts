@@ -1,14 +1,14 @@
 import { kv } from "./kv.ts";
 
 // Cheap usage metrics: how many lobbies were posted, how many updates we sent,
-// and across how many distinct realms — bucketed over a handful of rolling time
-// windows for the status page.
+// and across how many distinct Discord servers — bucketed over a handful of
+// rolling time windows for the status page.
 //
 // We keep two resolutions of time buckets plus a single all-time aggregate:
 //   - hourly buckets cover the <= 1 day windows
 //   - daily buckets cover the > 1 day windows
-// WC3 has only a handful of realms, so the per-bucket server set stays tiny and
-// unioning them to count distinct realms is essentially free.
+// The bot serves a bounded number of guilds, so the per-bucket server set stays
+// small and unioning them to count distinct servers is cheap.
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
