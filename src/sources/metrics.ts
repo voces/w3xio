@@ -1,0 +1,165 @@
+import { kv } from "./kv.ts";
+
+// Cheap usage metrics: how many lobbies were posted, how many updates we sent,
+// and across how many distinct realms — bucketed over a handful of rolling time
+// windows for the status page.
+//
+// We keep two resolutions of time buckets plus a single all-time aggregate:
+//   - hourly buckets cover the <= 1 day windows
+//   - daily buckets cover the > 1 day windows
+// WC3 has only a handful of realms, so the per-bucket server set stays tiny and
+// unioning them to count distinct realms is essentially free.
+
+const HOUR = 60 * 60 * 1000;
+const DAY = 24 * HOUR;
+
+// Retain a little past each window so the largest window always has full data.
+const HOURS_KEPT = 48; // covers the 24h window
+const DAYS_KEPT = 400; // covers the 365d window
+
+type Bucket = { lobbies: number; updates: number; servers: string[] };
+
+const empty = (): Bucket => ({ lobbies: 0, updates: 0, servers: [] });
+
+const hourKey = (index: number) => ["metrics", "hour", index];
+const dayKey = (index: number) => ["metrics", "day", index];
+const allKey = ["metrics", "all"];
+
+const merge = (base: Bucket, add: Bucket): Bucket => ({
+  lobbies: base.lobbies + add.lobbies,
+  updates: base.updates + add.updates,
+  servers: [...new Set([...base.servers, ...add.servers])],
+});
+
+const pruneOld = async (hour: number, day: number) => {
+  try {
+    const stale: Deno.KvKey[] = [];
+    for await (
+      const e of kv.list({ prefix: ["metrics", "hour"] }, { batchSize: 500 })
+    ) {
+      if ((e.key.at(-1) as number) < hour - HOURS_KEPT) stale.push(e.key);
+    }
+    for await (
+      const e of kv.list({ prefix: ["metrics", "day"] }, { batchSize: 500 })
+    ) {
+      if ((e.key.at(-1) as number) < day - DAYS_KEPT) stale.push(e.key);
+    }
+    await Promise.all(stale.map((k) => kv.delete(k)));
+  } catch (err) {
+    console.error(new Date(), "Failed to prune metrics buckets", err);
+  }
+};
+
+/**
+ * Record a cycle's worth of activity. `servers` should be the realms of the
+ * lobbies counted in `lobbies`. No-ops when there's nothing to record.
+ */
+export const recordMetrics = async (
+  add: { lobbies: number; updates: number; servers: string[] },
+) => {
+  if (!add.lobbies && !add.updates) return;
+  try {
+    const now = Date.now();
+    const hour = Math.floor(now / HOUR);
+    const day = Math.floor(now / DAY);
+
+    const [hourB, dayB, allB] = await Promise.all([
+      kv.get<Bucket>(hourKey(hour)),
+      kv.get<Bucket>(dayKey(day)),
+      kv.get<Bucket>(allKey),
+    ]);
+
+    const sample: Bucket = {
+      lobbies: add.lobbies,
+      updates: add.updates,
+      servers: [...new Set(add.servers)],
+    };
+
+    await Promise.all([
+      kv.set(hourKey(hour), merge(hourB.value ?? empty(), sample)),
+      kv.set(dayKey(day), merge(dayB.value ?? empty(), sample)),
+      kv.set(allKey, merge(allB.value ?? empty(), sample)),
+    ]);
+
+    // A freshly created hour bucket means the clock rolled over — a good, cheap
+    // moment (once an hour) to sweep away expired buckets.
+    if (!hourB.value) await pruneOld(hour, day);
+  } catch (err) {
+    console.error(new Date(), "Failed to record metrics", err);
+  }
+};
+
+export type MetricsWindow = {
+  label: string;
+  lobbies: number;
+  updates: number;
+  servers: number;
+};
+
+const windows: { label: string; ms: number; daily: boolean }[] = [
+  { label: "1h", ms: HOUR, daily: false },
+  { label: "24h", ms: DAY, daily: false },
+  { label: "7d", ms: 7 * DAY, daily: true },
+  { label: "30d", ms: 30 * DAY, daily: true },
+  { label: "90d", ms: 90 * DAY, daily: true },
+  { label: "1y", ms: 365 * DAY, daily: true },
+];
+
+const readBuckets = async (
+  prefix: Deno.KvKey,
+): Promise<Map<number, Bucket>> => {
+  const map = new Map<number, Bucket>();
+  for await (const e of kv.list<Bucket>({ prefix }, { batchSize: 500 })) {
+    map.set(e.key.at(-1) as number, e.value);
+  }
+  return map;
+};
+
+let cache: { at: number; summary: MetricsWindow[] } | undefined;
+const CACHE_MS = 60_000;
+
+/**
+ * Summarize activity across each rolling window. Counts are over-approximate at
+ * the bucket boundary (the oldest bucket touched is included whole), which is
+ * plenty precise for a usage dashboard. Cached for a minute.
+ */
+export const getMetricsSummary = async (): Promise<MetricsWindow[]> => {
+  if (cache && Date.now() - cache.at < CACHE_MS) return cache.summary;
+
+  const now = Date.now();
+  const [hourly, daily, all] = await Promise.all([
+    readBuckets(["metrics", "hour"]),
+    readBuckets(["metrics", "day"]),
+    kv.get<Bucket>(allKey),
+  ]);
+
+  const summary: MetricsWindow[] = windows.map(
+    ({ label, ms, daily: byDay }) => {
+      const size = byDay ? DAY : HOUR;
+      const cutoff = Math.floor((now - ms) / size);
+      const source = byDay ? daily : hourly;
+
+      let lobbies = 0;
+      let updates = 0;
+      const servers = new Set<string>();
+      for (const [index, b] of source) {
+        if (index < cutoff) continue;
+        lobbies += b.lobbies;
+        updates += b.updates;
+        for (const s of b.servers) servers.add(s);
+      }
+      return { label, lobbies, updates, servers: servers.size };
+    },
+  );
+
+  const allB = all.value ?? empty();
+  summary.push({
+    label: "All",
+    lobbies: allB.lobbies,
+    updates: allB.updates,
+    servers: allB.servers.length,
+  });
+
+  cache = { at: now, summary };
+  return summary;
+};

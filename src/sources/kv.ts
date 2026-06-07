@@ -3,7 +3,7 @@ import { z } from "npm:zod";
 import { zLobby } from "./lobbies.ts";
 import { getLastReplayId } from "./replays.ts";
 
-const kv = await Deno.openKv();
+export const kv = await Deno.openKv();
 
 export const zAlert = z.object({
   channelId: z.string(),
