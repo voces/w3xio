@@ -59,4 +59,16 @@ export const meta = {
   async setReplayOffset(value: number) {
     await kv.set(["meta", "replayOffset"], value);
   },
+  async getDataSource() {
+    try {
+      return z.enum(["none", "wc3stats", "wc3maps"]).parse(
+        (await kv.get(["meta", "dataSource"])).value,
+      );
+    } catch {
+      return null;
+    }
+  },
+  async setDataSource(value: string) {
+    await kv.set(["meta", "dataSource"], value);
+  },
 };

@@ -1,5 +1,11 @@
-import { DataSource, getLobbies, Lobby } from "./sources/lobbies.ts";
-import { Alert, db, Rule } from "./sources/kv.ts";
+import {
+  DataSource,
+  getLobbies,
+  Lobby,
+  restoreDataSource,
+  setOnDataSourceChange,
+} from "./sources/lobbies.ts";
+import { Alert, db, meta, Rule } from "./sources/kv.ts";
 import { discord, messageAdminAndWarn } from "./sources/discord.ts";
 import { DiscordAPIError } from "npm:@discordjs/rest@2.3.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
@@ -507,6 +513,16 @@ const period = 60_000 / UPDATES_PER_MINUTE;
 let armed = false;
 
 if (!Deno.env.get("DISABLE_LIVE_LOBBIES")) {
+  // Persist the active feed and restore it on boot so we only alert on a true
+  // source change, not on every restart.
+  setOnDataSourceChange((source) => {
+    meta.setDataSource(source).catch((err) =>
+      console.error(new Date(), "Failed to persist data source", err)
+    );
+  });
+  const restored = await meta.getDataSource();
+  if (restored) restoreDataSource(restored);
+
   Deno.cron("lobbies", "* * * * *", () => {
     if (!armed) {
       armed = true;
