@@ -1,5 +1,6 @@
 import { getCachedLobbies, stats } from "../../liveLobbies.ts";
 import { getSourceLiveness, Lobby } from "../../sources/lobbies.ts";
+import { getMetricsSummary, MetricsWindow } from "../../sources/metrics.ts";
 import { Handler } from "../types.ts";
 
 export const formatTime = (
@@ -38,8 +39,14 @@ const lobbySort = (a: Lobby, b: Lobby) =>
     ? -1
     : 0;
 
-export const getStatus: Handler = () => {
+export const metricsHTML = (metrics: MetricsWindow[]) =>
+  metrics.map((m) =>
+    `<div class="metric"><span class="metric-label">${m.label}</span><span class="metric-val">${m.lobbies.toLocaleString()} lobbies</span><span class="metric-sub">${m.servers.toLocaleString()} servers &middot; ${m.updates.toLocaleString()} updates</span></div>`
+  ).join("");
+
+export const getStatus: Handler = async () => {
   const liveness = getSourceLiveness();
+  const metrics = await getMetricsSummary();
   const allLobbies = [...getCachedLobbies()].sort(lobbySort);
   const lobbies = allLobbies.slice(0, 100);
 
@@ -70,6 +77,24 @@ export const getStatus: Handler = () => {
   .meta span { white-space: nowrap }
   .meta .up { color: #4ec97a }
   .meta .down { color: #e05252 }
+  .metrics { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px }
+  .metric {
+    flex: 1 1 auto; min-width: 104px;
+    background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+    padding: 10px 12px;
+  }
+  .metric-label {
+    display: block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #888; margin-bottom: 5px;
+  }
+  .metric-val {
+    display: block; color: #fff; font-size: 16px; font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .metric-sub {
+    display: block; font-size: 11px; color: #666; margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
   table { width: 100%; border-collapse: collapse; table-layout: fixed }
   thead { position: sticky; top: 0; z-index: 1; background: #111 }
   th {
@@ -260,8 +285,10 @@ export const getStatus: Handler = () => {
   import morphdom from "https://esm.sh/morphdom";
   const lobbySort = ${lobbySort.toString()};
   const formatTime = ${formatTime.toString()};
+  const metricsHTML = ${metricsHTML.toString()};
 
   let lobbies = ${JSON.stringify(lobbies)};
+  let metrics = ${JSON.stringify(metrics)};
   let total = ${allLobbies.length};
   let totalUnfiltered = ${allLobbies.length};
   let hasMore = ${allLobbies.length > 100};
@@ -296,6 +323,7 @@ export const getStatus: Handler = () => {
     hasMore = data.hasMore;
     lastUpdate = data.lastUpdate;
     liveness = data.liveness;
+    metrics = data.metrics;
   };
 
   const refresh = () => fetchPage(0, Math.max(lobbies.length, PAGE)).then(render);
@@ -329,6 +357,7 @@ export const getStatus: Handler = () => {
     wc3MapsEl.textContent = wc3MapsStatus;
     wc3MapsEl.className = wc3MapsStatus;
     document.getElementById("wc3mapsBadge").style.display = liveness.wc3mapsChecked ? "" : "none";
+    if (metrics) document.getElementById("metrics").innerHTML = metricsHTML(metrics);
 
     morphdom(document.querySelector("tbody"), \`<tbody>\${lobbies.map(l => \`<tr id="\${l.id}">
       <td class="col-map" title="\${l.map}">\${l.map}</td>
@@ -380,6 +409,7 @@ export const getStatus: Handler = () => {
     }</span></span>
     <span>Lobbies: <span id="lobbyCount">${allLobbies.length}</span></span>
   </div>
+  <div class="metrics" id="metrics">${metricsHTML(metrics)}</div>
   <table>
     <thead>
       <tr class="col-headers">

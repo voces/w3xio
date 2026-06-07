@@ -1,5 +1,6 @@
 import { getCachedLobbies, process, stats } from "../../liveLobbies.ts";
 import { getSourceLiveness, Lobby } from "../../sources/lobbies.ts";
+import { getMetricsSummary } from "../../sources/metrics.ts";
 import { Handler } from "../types.ts";
 import { ansiToHTML } from "../util/ansiToHTML.ts";
 
@@ -38,7 +39,7 @@ const matches = (
   (!filters.alive || !lobby.deadAt) &&
   (!filters.tracked || !!lobby.messages.length);
 
-export const getLobbies: Handler = (ctx) => {
+export const getLobbies: Handler = async (ctx) => {
   const allLobbies = getCachedLobbies();
   const filters = parseFilters(ctx.url.searchParams);
   const limit = Math.min(
@@ -68,6 +69,7 @@ export const getLobbies: Handler = (ctx) => {
     hasMore: offset + page.length < total,
     lastUpdate: stats.lastDataUpdate,
     liveness: getSourceLiveness(),
+    metrics: await getMetricsSummary(),
   };
 
   if (ctx.req.headers.get("accept")?.includes("application/json")) {
@@ -106,15 +108,15 @@ export const getLobbies: Handler = (ctx) => {
 </head>
 <body>
   ${`<pre>${
-        ansiToHTML(
-          Deno.inspect(payload, {
-            colors: true,
-            depth: Infinity,
-            compact: true,
-            iterableLimit: Infinity,
-          }),
-        )
-      }</pre>`}
+      ansiToHTML(
+        Deno.inspect(payload, {
+          colors: true,
+          depth: Infinity,
+          compact: true,
+          iterableLimit: Infinity,
+        }),
+      )
+    }</pre>`}
 <body>`,
     { headers: { "content-type": "text/html; charset=utf-8" } },
   );

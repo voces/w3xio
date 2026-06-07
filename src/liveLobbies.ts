@@ -11,6 +11,7 @@ import { DiscordAPIError } from "npm:@discordjs/rest@2.3.0";
 import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
 import { notifyHealthy, notifyReady } from "./sources/watchdog.ts";
+import { recordMetrics } from "./sources/metrics.ts";
 import { renderMessage } from "./template.ts";
 
 export const stats = { lastDataUpdate: 0 };
@@ -360,6 +361,11 @@ const updateLobbies = async () => {
   let pendingReplay = 0;
   let cleared = 0;
   let linked = 0;
+  // Metrics only count work we actually emit to Discord: lobbies we echoed to at
+  // least one channel and updates that edited at least one live message.
+  let echoedLobbies = 0;
+  let echoedUpdates = 0;
+  const echoedServers = new Set<string>();
 
   for (const newLobby of newLobbies) {
     let oldLobby = oldLobbies.find((l) => l.id === newLobby.id);
@@ -375,13 +381,20 @@ const updateLobbies = async () => {
     if (!oldLobby) {
       newLobby.messages = await onNewLobby(newLobby, alerts, dataSource);
       news++;
+      if (newLobby.messages.length) {
+        echoedLobbies++;
+        echoedServers.add(newLobby.server);
+      }
       await setLobby(newLobby);
     } else {
       newLobby.messages = oldLobby.messages;
       if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
         await onUpdateLobby(newLobby, dataSource, alerts);
         if (oldLobby.deadAt) found++;
-        else updates++;
+        else {
+          updates++;
+          if (newLobby.messages.length) echoedUpdates++;
+        }
       } else stable++;
       await setLobby(newLobby);
     }
@@ -477,6 +490,12 @@ const updateLobbies = async () => {
     Math.round((Date.now() - now) / 10) / 100,
     "seconds.",
   );
+
+  await recordMetrics({
+    lobbies: echoedLobbies,
+    updates: echoedUpdates,
+    servers: [...echoedServers],
+  });
 
   cachedLobbies = [...lobbyCache.values()].sort((a, b) =>
     (a.created && b.created)
