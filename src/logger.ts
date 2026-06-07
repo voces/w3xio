@@ -1,4 +1,4 @@
-import { gray, red, yellow } from "jsr:@std/fmt/colors";
+import { gray, red, yellow } from "@std/fmt/colors";
 import { ansiToHTML } from "./api/util/ansiToHTML.ts";
 
 class MemoryBuffer {

@@ -7,8 +7,8 @@ import {
 } from "./sources/lobbies.ts";
 import { Alert, db, meta, Rule } from "./sources/kv.ts";
 import { discord, messageAdminAndWarn } from "./sources/discord.ts";
-import { DiscordAPIError } from "npm:@discordjs/rest@2.3.0";
-import { AllowedMentionsTypes, APIEmbed } from "npm:discord-api-types/v10";
+import { DiscordAPIError } from "@discordjs/rest";
+import { AllowedMentionsTypes, APIEmbed } from "discord-api-types/v10";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
 import { notifyHealthy, notifyReady } from "./sources/watchdog.ts";
 import { recordMetrics } from "./sources/metrics.ts";

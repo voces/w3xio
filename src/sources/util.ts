@@ -1,4 +1,4 @@
-import { ZodType } from "npm:zod";
+import { ZodType } from "zod";
 
 export const zodFetch = async <T>(
   input: Parameters<typeof fetch>[0],

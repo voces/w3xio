@@ -1,11 +1,11 @@
-import { REST } from "npm:@discordjs/rest";
-import { API } from "npm:@discordjs/core";
+import { REST } from "@discordjs/rest";
+import { API } from "@discordjs/core";
 import {
   APIChannel,
   APIMessage,
   ChannelType,
   RESTPostAPIChannelMessageJSONBody,
-} from "npm:discord-api-types/v10";
+} from "discord-api-types/v10";
 
 const rest = new REST({ version: "10" })
   .setToken(Deno.env.get("DISCORD_TOKEN")!);
