@@ -101,14 +101,14 @@ let failedTries = 0;
 let lastWc3statsProbe = 0;
 let lastBothDownProbe = 0;
 
-// Network tuning.
-const PROBE_TIMEOUT_MS = 5_000;
-// Both feeds down: give slow/struggling servers more room since we're not
-// racing a live update and only probe about once a minute anyway.
-const DOWN_TIMEOUT_MS = 15_000;
-// Retries only for the active (normally-succeeding) source — never for probes.
-const ACTIVE_RETRIES = 2;
-const RETRY_DELAY_MS = 500;
+// Single timeout for both probing and serving. Using one value — rather than a
+// lenient timeout to activate a source and a stricter one to keep it — means we
+// never activate a feed we can't sustain, which would otherwise flip-flop (and
+// spam) on a server whose latency sat between the two. No retries: the generous
+// timeout plus the failedTries debounce below already absorb transient blips,
+// and this keeps a worst-case getLobbies (two sequential probes, ~30s) well
+// under the 60s systemd watchdog.
+const FETCH_TIMEOUT_MS = 15_000;
 // While wc3maps is serving as fallback, re-probe wc3stats this often to detect
 // recovery instead of hammering it every 10s cycle.
 const WC3STATS_RECHECK_MS = 5 * 60_000;
@@ -119,20 +119,15 @@ const BOTH_DOWN_RECHECK_MS = 60_000;
 const fetchLobbies = async (
   url: string,
   parse: (r: Response) => Lobby[] | Promise<Lobby[]>,
-  { retries, timeoutMs }: { retries: number; timeoutMs: number },
 ): Promise<Lobby[]> => {
-  for (let attempt = 0;; attempt++) {
-    try {
-      const r = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-      return await parse(r);
-    } catch (err) {
-      if (attempt >= retries) {
-        console.error(new Date(), `Failed to fetch ${url}:`, err);
-        return [];
-      }
-      console.warn(new Date(), `Retrying ${url} (${attempt + 1}/${retries})`);
-      await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
-    }
+  try {
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    return await parse(r);
+  } catch (err) {
+    console.error(new Date(), `Failed to fetch ${url}:`, err);
+    return [];
   }
 };
 
@@ -176,8 +171,6 @@ export const getLobbies = async (): Promise<
     lastBothDownProbe = now;
   }
 
-  const timeoutMs = bothDown ? DOWN_TIMEOUT_MS : PROBE_TIMEOUT_MS;
-
   // wc3stats is the preferred source. Probe it every cycle while it's active;
   // once we've fallen back to wc3maps only re-probe periodically to detect
   // recovery instead of hammering a down service every 10s.
@@ -190,7 +183,6 @@ export const getLobbies = async (): Promise<
     const wc3StatsLobbies = await fetchLobbies(
       "https://api.wc3stats.com/gamelist",
       parseWc3stats,
-      { retries: dataSource === "wc3stats" ? ACTIVE_RETRIES : 0, timeoutMs },
     );
 
     wc3statsUp = wc3StatsLobbies.length > 0;
@@ -205,7 +197,6 @@ export const getLobbies = async (): Promise<
   const wc3MapsLobbies = await fetchLobbies(
     "https://wc3maps.com/api/lobbies",
     parseWc3maps,
-    { retries: dataSource === "wc3maps" ? ACTIVE_RETRIES : 0, timeoutMs },
   );
   wc3mapsChecked = true;
   wc3mapsUp = wc3MapsLobbies.length > 0;
