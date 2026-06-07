@@ -363,6 +363,7 @@ const updateLobbies = async () => {
   let linked = 0;
   // Metrics only count work we actually emit to Discord: lobbies we echoed to at
   // least one channel and updates that edited at least one live message.
+  // echoedServers tracks the distinct Discord servers (guilds) we posted to.
   let echoedLobbies = 0;
   let echoedUpdates = 0;
   const echoedServers = new Set<string>();
@@ -383,7 +384,14 @@ const updateLobbies = async () => {
       news++;
       if (newLobby.messages.length) {
         echoedLobbies++;
-        echoedServers.add(newLobby.server);
+        for (const { channel } of newLobby.messages) {
+          const meta = alerts.find((a) => a.channelId === channel)?.meta;
+          // Count distinct guilds we posted to; DMs have no guild, so fall back
+          // to the channel as the destination key.
+          echoedServers.add(
+            meta?.type === "guildChannel" ? meta.guildId : channel,
+          );
+        }
       }
       await setLobby(newLobby);
     } else {
