@@ -1,6 +1,7 @@
 import {
   DataSource,
   getLobbies,
+  getSourceLiveness,
   Lobby,
   restoreDataSource,
   setOnDataSourceChange,
@@ -12,6 +13,7 @@ import { AllowedMentionsTypes, APIEmbed } from "discord-api-types/v10";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
 import { notifyHealthy, notifyReady } from "./sources/watchdog.ts";
 import { recordMetrics } from "./sources/metrics.ts";
+import { recordUptime } from "./sources/uptime.ts";
 import { renderMessage } from "./template.ts";
 
 export const stats = { lastDataUpdate: 0 };
@@ -177,7 +179,7 @@ const updateMessage = async (
   dataSource: DataSource,
   alert: Alert | undefined,
   replayId?: number,
-) => {
+): Promise<boolean> => {
   try {
     if (status === "alive" || status === "missing") {
       const channelThrottle = channelThrottles[channel] ??
@@ -193,7 +195,7 @@ const updateMessage = async (
           "in channel",
           channel,
         );
-        return;
+        return false;
       }
       channelThrottle.bucket--;
       channelThrottle.lastUpdate = Date.now();
@@ -211,6 +213,7 @@ const updateMessage = async (
       status,
       `${lobby.slotsTaken}/${lobby.slotsTotal}`,
     );
+    return true;
   } catch (err) {
     if (!(err instanceof DiscordAPIError)) {
       console.error("Error updating message in channel", channel, err);
@@ -218,17 +221,20 @@ const updateMessage = async (
       console.warn(new Date(), "Message deleted in channel", channel);
       lobby.messages = lobby.messages.filter((m) => m.message !== message);
     } else console.error("Error updating message in channel", channel, err);
+    return false;
   }
 };
 
+// Returns the number of messages actually edited (excludes throttle-shed and
+// failed edits) so callers can count the work emitted.
 const onUpdateLobby = async (
   lobby: Lobby,
   dataSource: DataSource,
   alerts: Alert[],
-) => {
+): Promise<number> => {
   console.debug(new Date(), "Updating lobby", lobby.name);
   stats.lastDataUpdate = Date.now();
-  await Promise.all(
+  const edited = await Promise.all(
     lobby.messages.map(({ channel, message }) =>
       updateMessage(
         channel,
@@ -240,6 +246,7 @@ const onUpdateLobby = async (
       )
     ),
   );
+  return edited.filter(Boolean).length;
 };
 
 const onMissingLobby = async (
@@ -344,6 +351,9 @@ const updateLobbies = async () => {
     getReplays().catch(() => []),
   ]);
 
+  // Heartbeat for uptime tracking; runs every cycle regardless of lobby results.
+  await recordUptime(getSourceLiveness());
+
   if (newLobbies.length === 0) {
     // Don't mass update lobbies to missing if we have none
     notifyHealthy();
@@ -361,10 +371,10 @@ const updateLobbies = async () => {
   let pendingReplay = 0;
   let cleared = 0;
   let linked = 0;
-  // Metrics only count work we actually emit to Discord: lobbies we echoed to at
-  // least one channel and updates that edited at least one live message.
-  // echoedServers tracks the distinct Discord servers (guilds) we posted to.
-  let echoedLobbies = 0;
+  // Metrics count work we actually emit to Discord: each message posted and each
+  // live-update edit sent (excluding throttle-shed/failed edits). echoedServers
+  // tracks the distinct Discord servers (guilds) we posted to.
+  let echoedMessages = 0;
   let echoedUpdates = 0;
   const echoedServers = new Set<string>();
 
@@ -382,26 +392,24 @@ const updateLobbies = async () => {
     if (!oldLobby) {
       newLobby.messages = await onNewLobby(newLobby, alerts, dataSource);
       news++;
-      if (newLobby.messages.length) {
-        echoedLobbies++;
-        for (const { channel } of newLobby.messages) {
-          const meta = alerts.find((a) => a.channelId === channel)?.meta;
-          // Count distinct guilds we posted to; DMs have no guild, so fall back
-          // to the channel as the destination key.
-          echoedServers.add(
-            meta?.type === "guildChannel" ? meta.guildId : channel,
-          );
-        }
+      echoedMessages += newLobby.messages.length;
+      for (const { channel } of newLobby.messages) {
+        const meta = alerts.find((a) => a.channelId === channel)?.meta;
+        // Count distinct guilds we posted to; DMs have no guild, so fall back
+        // to the channel as the destination key.
+        echoedServers.add(
+          meta?.type === "guildChannel" ? meta.guildId : channel,
+        );
       }
       await setLobby(newLobby);
     } else {
       newLobby.messages = oldLobby.messages;
       if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
-        await onUpdateLobby(newLobby, dataSource, alerts);
+        const edited = await onUpdateLobby(newLobby, dataSource, alerts);
         if (oldLobby.deadAt) found++;
         else {
           updates++;
-          if (newLobby.messages.length) echoedUpdates++;
+          echoedUpdates += edited;
         }
       } else stable++;
       await setLobby(newLobby);
@@ -500,7 +508,7 @@ const updateLobbies = async () => {
   );
 
   await recordMetrics({
-    lobbies: echoedLobbies,
+    messages: echoedMessages,
     updates: echoedUpdates,
     servers: [...echoedServers],
   });

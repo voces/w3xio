@@ -1,6 +1,6 @@
 import { kv } from "./kv.ts";
 
-// Cheap usage metrics: how many lobbies were posted, how many updates we sent,
+// Cheap usage metrics: how many messages we posted, how many updates we sent,
 // and across how many distinct Discord servers — bucketed over a handful of
 // rolling time windows for the status page.
 //
@@ -17,16 +17,16 @@ const DAY = 24 * HOUR;
 const HOURS_KEPT = 48; // covers the 24h window
 const DAYS_KEPT = 400; // covers the 365d window
 
-type Bucket = { lobbies: number; updates: number; servers: string[] };
+type Bucket = { messages: number; updates: number; servers: string[] };
 
-const empty = (): Bucket => ({ lobbies: 0, updates: 0, servers: [] });
+const empty = (): Bucket => ({ messages: 0, updates: 0, servers: [] });
 
 const hourKey = (index: number) => ["metrics", "hour", index];
 const dayKey = (index: number) => ["metrics", "day", index];
 const allKey = ["metrics", "all"];
 
 const merge = (base: Bucket, add: Bucket): Bucket => ({
-  lobbies: base.lobbies + add.lobbies,
+  messages: base.messages + add.messages,
   updates: base.updates + add.updates,
   servers: [...new Set([...base.servers, ...add.servers])],
 });
@@ -51,13 +51,13 @@ const pruneOld = async (hour: number, day: number) => {
 };
 
 /**
- * Record a cycle's worth of activity. `servers` should be the realms of the
- * lobbies counted in `lobbies`. No-ops when there's nothing to record.
+ * Record a cycle's worth of activity. `servers` should be the Discord servers
+ * the counted `messages` were posted to. No-ops when there's nothing to record.
  */
 export const recordMetrics = async (
-  add: { lobbies: number; updates: number; servers: string[] },
+  add: { messages: number; updates: number; servers: string[] },
 ) => {
-  if (!add.lobbies && !add.updates) return;
+  if (!add.messages && !add.updates) return;
   try {
     const now = Date.now();
     const hour = Math.floor(now / HOUR);
@@ -70,7 +70,7 @@ export const recordMetrics = async (
     ]);
 
     const sample: Bucket = {
-      lobbies: add.lobbies,
+      messages: add.messages,
       updates: add.updates,
       servers: [...new Set(add.servers)],
     };
@@ -91,7 +91,7 @@ export const recordMetrics = async (
 
 export type MetricsWindow = {
   label: string;
-  lobbies: number;
+  messages: number;
   updates: number;
   servers: number;
 };
@@ -139,23 +139,23 @@ export const getMetricsSummary = async (): Promise<MetricsWindow[]> => {
       const cutoff = Math.floor((now - ms) / size);
       const source = byDay ? daily : hourly;
 
-      let lobbies = 0;
+      let messages = 0;
       let updates = 0;
       const servers = new Set<string>();
       for (const [index, b] of source) {
         if (index < cutoff) continue;
-        lobbies += b.lobbies;
+        messages += b.messages;
         updates += b.updates;
         for (const s of b.servers) servers.add(s);
       }
-      return { label, lobbies, updates, servers: servers.size };
+      return { label, messages, updates, servers: servers.size };
     },
   );
 
   const allB = all.value ?? empty();
   summary.push({
     label: "All",
-    lobbies: allB.lobbies,
+    messages: allB.messages,
     updates: allB.updates,
     servers: allB.servers.length,
   });

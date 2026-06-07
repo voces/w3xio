@@ -1,6 +1,7 @@
 import { getCachedLobbies, stats } from "../../liveLobbies.ts";
 import { getSourceLiveness, Lobby } from "../../sources/lobbies.ts";
 import { getMetricsSummary, MetricsWindow } from "../../sources/metrics.ts";
+import { getUptimeSummary, ServiceUptime } from "../../sources/uptime.ts";
 import { Handler } from "../types.ts";
 
 export const formatTime = (
@@ -41,12 +42,44 @@ const lobbySort = (a: Lobby, b: Lobby) =>
 
 export const metricsHTML = (metrics: MetricsWindow[]) =>
   metrics.map((m) =>
-    `<div class="metric"><span class="metric-label">${m.label}</span><span class="metric-val">${m.lobbies.toLocaleString()} lobbies</span><span class="metric-sub">${m.servers.toLocaleString()} servers &middot; ${m.updates.toLocaleString()} updates</span></div>`
+    `<div class="metric"><span class="metric-label">${m.label}</span><span class="metric-val">${m.messages.toLocaleString()} messages</span><span class="metric-sub">${m.servers.toLocaleString()} servers &middot; ${m.updates.toLocaleString()} updates</span></div>`
   ).join("");
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export const uptimeHTML = (services: ServiceUptime[]) =>
+  services.map((s) => {
+    const pct = s.overallTotal
+      ? (s.overallUp / s.overallTotal * 100).toFixed(2) + "%"
+      : "&mdash;";
+    const bars = s.days.map((d) => {
+      const date = new Date(d.day * DAY_MS).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      });
+      const ratio = d.total ? d.up / d.total : 0;
+      const cls = !d.total
+        ? "nodata"
+        : ratio >= 0.99
+        ? "up"
+        : ratio >= 0.7
+        ? "warn"
+        : "down";
+      const title = d.total
+        ? `${date}: ${(ratio * 100).toFixed(2)}% up`
+        : `${date}: no data`;
+      return `<span class="ubar ${cls}" title="${title}"></span>`;
+    }).join("");
+    return `<div class="uptime-row"><div class="uptime-head"><span class="uptime-label">${s.label}</span><span class="uptime-pct">${pct}</span></div><div class="uptime-bars">${bars}</div></div>`;
+  }).join("");
 
 export const getStatus: Handler = async () => {
   const liveness = getSourceLiveness();
-  const metrics = await getMetricsSummary();
+  const [metrics, uptime] = await Promise.all([
+    getMetricsSummary(),
+    getUptimeSummary(),
+  ]);
   const allLobbies = [...getCachedLobbies()].sort(lobbySort);
   const lobbies = allLobbies.slice(0, 100);
 
@@ -95,6 +128,21 @@ export const getStatus: Handler = async () => {
     display: block; font-size: 11px; color: #666; margin-top: 2px;
     font-variant-numeric: tabular-nums;
   }
+  .uptime { margin-bottom: 24px }
+  .uptime-row { margin-bottom: 12px }
+  .uptime-row:last-child { margin-bottom: 0 }
+  .uptime-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; margin-bottom: 5px;
+  }
+  .uptime-label { color: #ccc }
+  .uptime-pct { color: #888; font-variant-numeric: tabular-nums }
+  .uptime-bars { display: flex; gap: 2px; height: 28px }
+  .ubar { flex: 1 1 0; min-width: 2px; border-radius: 1px; background: #2a2a2a }
+  .ubar.up { background: #4ec97a }
+  .ubar.warn { background: #e6a500 }
+  .ubar.down { background: #e05252 }
+  .ubar.nodata { background: #2a2a2a }
   table { width: 100%; border-collapse: collapse; table-layout: fixed }
   thead { position: sticky; top: 0; z-index: 1; background: #111 }
   th {
@@ -410,6 +458,7 @@ export const getStatus: Handler = async () => {
     <span>Lobbies: <span id="lobbyCount">${allLobbies.length}</span></span>
   </div>
   <div class="metrics" id="metrics">${metricsHTML(metrics)}</div>
+  <div class="uptime">${uptimeHTML(uptime)}</div>
   <table>
     <thead>
       <tr class="col-headers">
