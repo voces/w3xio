@@ -57,10 +57,23 @@ export const getSourceLiveness = () => ({
   wc3mapsChecked,
 });
 
-const ensureDataSource = (newDatasSource: DataSource) => {
-  if (dataSource === newDatasSource) return;
+// Persisted so the active feed survives reboots: we only want to alert the
+// admin on a *true* change of source, not re-announce the same one on every
+// restart.
+let onDataSourceChange: ((source: DataSource) => void) | undefined;
+export const setOnDataSourceChange = (fn: (source: DataSource) => void) => {
+  onDataSourceChange = fn;
+};
+export const restoreDataSource = (source: DataSource) => {
+  if (dataSource === "init") dataSource = source;
+};
+
+const ensureDataSource = (newDataSource: DataSource) => {
+  if (dataSource === newDataSource) return;
   const oldDataSource = dataSource;
-  dataSource = newDatasSource;
+  dataSource = newDataSource;
+  // Persist immediately so a restart resumes on the same source silently.
+  onDataSourceChange?.(newDataSource);
   discord.applications.editCurrent({
     description: `Lobby feed: ${dataSource}${
       dataSource === "none" ? "" : ".com"
@@ -73,7 +86,7 @@ const ensureDataSource = (newDatasSource: DataSource) => {
         messageAnders("wc3stats down!").then((strike) =>
           strikeLastAndersMessage = strike
         );
-      } else if (newDatasSource === "wc3stats" && strikeLastAndersMessage) {
+      } else if (newDataSource === "wc3stats" && strikeLastAndersMessage) {
         strikeLastAndersMessage();
       }
     })
@@ -84,55 +97,107 @@ const ensureDataSource = (newDatasSource: DataSource) => {
 };
 
 let failedTries = 0;
+// Timestamps (ms) used to throttle how often we probe an unavailable feed.
+let lastWc3statsProbe = 0;
+let lastBothDownProbe = 0;
+
+// Single timeout for both probing and serving. Using one value — rather than a
+// lenient timeout to activate a source and a stricter one to keep it — means we
+// never activate a feed we can't sustain, which would otherwise flip-flop (and
+// spam) on a server whose latency sat between the two. No retries: the generous
+// timeout plus the failedTries debounce below already absorb transient blips,
+// and this keeps a worst-case getLobbies (two sequential probes, ~30s) well
+// under the 60s systemd watchdog.
+const FETCH_TIMEOUT_MS = 15_000;
+// While wc3maps is serving as fallback, re-probe wc3stats this often to detect
+// recovery instead of hammering it every 10s cycle.
+const WC3STATS_RECHECK_MS = 5 * 60_000;
+// While both feeds are down, re-probe this often — aggressive enough to wake up
+// quickly, but not every cycle.
+const BOTH_DOWN_RECHECK_MS = 60_000;
+
+const fetchLobbies = async (
+  url: string,
+  parse: (r: Response) => Lobby[] | Promise<Lobby[]>,
+): Promise<Lobby[]> => {
+  try {
+    const r = await fetch(url, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    return await parse(r);
+  } catch (err) {
+    console.error(new Date(), `Failed to fetch ${url}:`, err);
+    return [];
+  }
+};
+
+const parseWc3stats = (r: Response): Promise<Lobby[]> =>
+  r.json().then((j) => {
+    const list = zGameList.parse(j).body;
+    const mostRecent = Math.max(
+      ...list.map((l) => l.created).filter((v) => typeof v === "number"),
+    );
+    if (Date.now() / 1000 - mostRecent > 300) return [];
+    return list;
+  });
+
+const parseWc3maps = async (r: Response): Promise<Lobby[]> => {
+  const text = await r.text();
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    console.debug(new Date(), "Invalid json:", text);
+    throw new Error(`Expected json, got ${r.headers.get("content-type")}`);
+  }
+  const list = thGameList.parse(json).data;
+  const mostRecent = Math.max(...list.map((l) => l.created));
+  if (Date.now() / 1000 - mostRecent > 600) return [];
+  return list;
+};
 
 export const getLobbies = async (): Promise<
   { lobbies: Lobby[]; dataSource: DataSource }
 > => {
-  const wc3StatsLobbies = await fetch("https://api.wc3stats.com/gamelist")
-    .then((r) => r.json())
-    .then((r) => {
-      const list = zGameList.parse(r).body;
-      const mostRecent = Math.max(
-        ...list.map((l) => l.created).filter((v) => typeof v === "number"),
-      );
-      if (Date.now() / 1000 - mostRecent > 300) return [];
-      return list;
-    })
-    .catch((err) => {
-      console.error(err);
-      return [];
-    });
+  const now = Date.now();
+  const bothDown = dataSource === "none";
 
-  wc3statsUp = wc3StatsLobbies.length > 0;
-
-  if (wc3statsUp) {
-    wc3mapsChecked = false;
-    ensureDataSource("wc3stats");
-    return { lobbies: wc3StatsLobbies, dataSource };
+  // Both feeds are down: don't spin every 10s. Re-probe about once a minute and
+  // serve nothing in between.
+  if (bothDown) {
+    if (now - lastBothDownProbe < BOTH_DOWN_RECHECK_MS) {
+      return { lobbies: [], dataSource };
+    }
+    lastBothDownProbe = now;
   }
 
-  const wc3MapsLobbies = await fetch("https://wc3maps.com/api/lobbies")
-    .then(async (r) => {
-      const text = await r.text();
-      try {
-        return JSON.parse(text);
-      } catch {
-        console.debug(new Date(), "Invalid json:", text);
-        throw new Error(
-          `Expected json, got ${r.headers.get("content-type")}`,
-        );
-      }
-    })
-    .then((r) => {
-      const list = thGameList.parse(r).data;
-      const mostRecent = Math.max(...list.map((l) => l.created));
-      if (Date.now() / 1000 - mostRecent > 600) return [];
-      return list;
-    })
-    .catch((err) => {
-      console.error(new Date(), err);
-      return [];
-    });
+  // wc3stats is the preferred source. Probe it every cycle while it's active;
+  // once we've fallen back to wc3maps only re-probe periodically to detect
+  // recovery instead of hammering a down service every 10s.
+  const probeWc3stats = dataSource === "wc3stats" || dataSource === "init" ||
+    bothDown ||
+    (dataSource === "wc3maps" && now - lastWc3statsProbe >= WC3STATS_RECHECK_MS);
+
+  if (probeWc3stats) {
+    lastWc3statsProbe = now;
+    const wc3StatsLobbies = await fetchLobbies(
+      "https://api.wc3stats.com/gamelist",
+      parseWc3stats,
+    );
+
+    wc3statsUp = wc3StatsLobbies.length > 0;
+
+    if (wc3statsUp) {
+      wc3mapsChecked = false;
+      ensureDataSource("wc3stats");
+      return { lobbies: wc3StatsLobbies, dataSource };
+    }
+  }
+
+  const wc3MapsLobbies = await fetchLobbies(
+    "https://wc3maps.com/api/lobbies",
+    parseWc3maps,
+  );
   wc3mapsChecked = true;
   wc3mapsUp = wc3MapsLobbies.length > 0;
   if (wc3mapsUp) {
