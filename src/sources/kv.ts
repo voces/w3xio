@@ -1,5 +1,5 @@
-import { collection, kvdex } from "jsr:@olli/kvdex";
-import { z } from "npm:zod";
+import { collection, kvdex } from "@olli/kvdex";
+import { z } from "zod";
 import { zLobby } from "./lobbies.ts";
 import { getLastReplayId } from "./replays.ts";
 

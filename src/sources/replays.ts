@@ -1,4 +1,4 @@
-import { z } from "npm:zod";
+import { z } from "zod";
 import { zodFetch } from "./util.ts";
 import { meta } from "./kv.ts";
 

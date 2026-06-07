@@ -1,10 +1,10 @@
-import { blue, brightRed, green, red, yellow } from "jsr:@std/fmt/colors";
-import { STATUS_CODE } from "jsr:@std/http/status";
-import { format } from "jsr:@std/fmt/bytes";
-import { serveFile } from "jsr:@std/http";
-import { join } from "jsr:@std/path/join";
+import { blue, brightRed, green, red, yellow } from "@std/fmt/colors";
+import { STATUS_CODE } from "@std/http/status";
+import { format } from "@std/fmt/bytes";
+import { serveFile } from "@std/http";
+import { join } from "@std/path/join";
 import { APIError } from "./ErrorCode.ts";
-import { ZodError } from "npm:zod";
+import { ZodError } from "zod";
 import { routes } from "./routes.ts";
 import { SerializableResponse } from "./types.ts";
 

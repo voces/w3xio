@@ -1,4 +1,4 @@
-import { z } from "npm:zod";
+import { z } from "zod";
 import { Handler } from "../types.ts";
 import { db } from "../../sources/kv.ts";
 import { APIError } from "../ErrorCode.ts";
