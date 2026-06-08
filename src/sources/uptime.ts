@@ -24,7 +24,7 @@ const DAYS_SHOWN = 90;
 const DAYS_KEPT = DAYS_SHOWN + 2;
 
 const services = [
-  { key: "bot", label: "Bot" },
+  { key: "bot", label: "Live Lobbies" },
   { key: "wc3stats", label: "wc3stats" },
   { key: "wc3maps", label: "wc3maps" },
 ] as const;

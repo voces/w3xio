@@ -12,7 +12,7 @@ import { DiscordAPIError } from "@discordjs/rest";
 import { AllowedMentionsTypes, APIEmbed } from "discord-api-types/v10";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
 import { notifyHealthy, notifyReady } from "./sources/watchdog.ts";
-import { recordMetrics } from "./sources/metrics.ts";
+import { recordMetrics, repairMetrics } from "./sources/metrics.ts";
 import { recordUptime } from "./sources/uptime.ts";
 import { renderMessage } from "./template.ts";
 
@@ -557,6 +557,9 @@ if (!Deno.env.get("DISABLE_LIVE_LOBBIES")) {
   });
   const restored = await meta.getDataSource();
   if (restored) restoreDataSource(restored);
+
+  // One-time cleanup of metric buckets corrupted by the lobbies->messages rename.
+  repairMetrics();
 
   Deno.cron("lobbies", "* * * * *", () => {
     if (!armed) {

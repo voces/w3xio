@@ -20,13 +20,47 @@ const DAYS_KEPT = 400; // covers the 365d window
 type Bucket = { messages: number; updates: number; servers: string[] };
 
 // Buckets written before the "lobbies" -> "messages" rename stored a `lobbies`
-// field; coalesce so existing data carries over instead of reading as NaN.
+// field; coalesce so existing data carries over. We also guard against NaN: an
+// earlier build summed undefined fields and persisted NaN into KV, and NaN is
+// not caught by `??`, so check for finiteness explicitly.
 type StoredBucket = Partial<Bucket> & { lobbies?: number };
+const fin = (x: unknown): number | undefined =>
+  typeof x === "number" && Number.isFinite(x) ? x : undefined;
 const normalize = (v: StoredBucket | null | undefined): Bucket => ({
-  messages: v?.messages ?? v?.lobbies ?? 0,
-  updates: v?.updates ?? 0,
+  messages: fin(v?.messages) ?? fin(v?.lobbies) ?? 0,
+  updates: fin(v?.updates) ?? 0,
   servers: v?.servers ?? [],
 });
+
+/**
+ * One-time cleanup: rewrite any bucket still holding a legacy `lobbies` field or
+ * a non-finite (NaN) count, so the stored data matches the current shape.
+ * Idempotent and cheap — clean buckets are skipped.
+ */
+export const repairMetrics = async () => {
+  try {
+    let fixed = 0;
+    for await (
+      const e of kv.list<StoredBucket>(
+        { prefix: ["metrics"] },
+        { batchSize: 500 },
+      )
+    ) {
+      const v = e.value;
+      if (
+        v?.lobbies !== undefined ||
+        !Number.isFinite(v?.messages) ||
+        !Number.isFinite(v?.updates)
+      ) {
+        await kv.set(e.key, normalize(v));
+        fixed++;
+      }
+    }
+    if (fixed) console.log(new Date(), "Repaired", fixed, "metric buckets");
+  } catch (err) {
+    console.error(new Date(), "Failed to repair metrics", err);
+  }
+};
 
 const hourKey = (index: number) => ["metrics", "hour", index];
 const dayKey = (index: number) => ["metrics", "day", index];
