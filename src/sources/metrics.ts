@@ -34,12 +34,19 @@ const normalize = (v: StoredBucket | null | undefined): Bucket => ({
 
 /**
  * One-time cleanup: rewrite any bucket still holding a legacy `lobbies` field or
- * a non-finite (NaN) count, so the stored data matches the current shape.
- * Idempotent and cheap — clean buckets are skipped.
+ * a non-finite (NaN) count, so the stored data matches the current shape. Also
+ * backfills the all-time bucket from the daily buckets if it's behind — the NaN
+ * repair reset it to zero, and since tracking just began the daily sum is the
+ * true all-time total. Idempotent and cheap.
  */
 export const repairMetrics = async () => {
   try {
     let fixed = 0;
+    let dailyMsgs = 0;
+    let dailyUpdates = 0;
+    const dailyServers = new Set<string>();
+    let allBucket: Bucket | null = null;
+
     for await (
       const e of kv.list<StoredBucket>(
         { prefix: ["metrics"] },
@@ -47,16 +54,41 @@ export const repairMetrics = async () => {
       )
     ) {
       const v = e.value;
+      const clean = normalize(v);
       if (
         v?.lobbies !== undefined ||
         !Number.isFinite(v?.messages) ||
         !Number.isFinite(v?.updates)
       ) {
-        await kv.set(e.key, normalize(v));
+        await kv.set(e.key, clean);
         fixed++;
+      }
+      if (e.key[1] === "day") {
+        dailyMsgs += clean.messages;
+        dailyUpdates += clean.updates;
+        for (const s of clean.servers) dailyServers.add(s);
+      } else if (e.key[1] === "all") {
+        allBucket = clean;
       }
     }
     if (fixed) console.log(new Date(), "Repaired", fixed, "metric buckets");
+
+    // Backfill the all-time bucket from daily data when it's behind. Max, never
+    // reduce, so it stays correct once old day buckets are pruned.
+    const cur = allBucket ?? { messages: 0, updates: 0, servers: [] };
+    const backfilled: Bucket = {
+      messages: Math.max(cur.messages, dailyMsgs),
+      updates: Math.max(cur.updates, dailyUpdates),
+      servers: [...new Set([...cur.servers, ...dailyServers])],
+    };
+    if (
+      backfilled.messages !== cur.messages ||
+      backfilled.updates !== cur.updates ||
+      backfilled.servers.length !== cur.servers.length
+    ) {
+      await kv.set(allKey, backfilled);
+      console.log(new Date(), "Backfilled all-time metric bucket from daily");
+    }
   } catch (err) {
     console.error(new Date(), "Failed to repair metrics", err);
   }
