@@ -1,22 +1,31 @@
 import { kv } from "./kv.ts";
 
-// Cheap usage metrics: how many messages we posted, how many updates we sent,
-// and across how many distinct Discord servers — bucketed over a handful of
-// rolling time windows for the status page.
+// Usage metrics: how many messages we posted, how many updates we sent, and
+// across how many distinct Discord servers — bucketed over rolling time windows
+// for the status page.
 //
-// We keep two resolutions of time buckets plus a single all-time aggregate:
-//   - 5-minute buckets cover the <= 1 day windows (1h, 24h)
-//   - daily buckets cover the > 1 day windows
-// The bot serves a bounded number of guilds, so the per-bucket server set stays
-// small and unioning them to count distinct servers is cheap.
+// Each window reads from a resolution sized to it, so precision stays high
+// without keeping a year of fine-grained buckets:
+//   - 1-minute buckets  -> 1h
+//   - 5-minute buckets  -> 24h
+//   - hourly buckets    -> 7d
+//   - daily buckets     -> 30d, 90d, 1y
+//   - a single all-time counter
+// Windows weight their boundary buckets by the fraction that overlaps the
+// window, so totals don't jump a whole bucket at a time. The bot serves a
+// bounded number of guilds, so unioning per-bucket server sets stays cheap.
 
-const FINE = 5 * 60 * 1000; // 5-minute resolution for sub-day windows
-const HOUR = 60 * 60 * 1000;
+const MIN = 60 * 1000;
+const FINE = 5 * MIN;
+const HOUR = 60 * MIN;
 const DAY = 24 * HOUR;
 
-// Retain a little past each window so the largest window always has full data.
+// Retain a little past each window so the largest window for a resolution always
+// has full data.
+const MIN_KEPT = 90; // 1-min buckets ≈ 1.5h, covers the 1h window
 const FINE_KEPT = 300; // 5-min buckets ≈ 25h, covers the 24h window
-const DAYS_KEPT = 400; // covers the 365d window
+const HOUR_KEPT = 192; // hourly buckets ≈ 8d, covers the 7d window
+const DAY_KEPT = 400; // daily buckets, covers the 1y window
 
 type Bucket = { messages: number; updates: number; servers: string[] };
 
@@ -33,12 +42,52 @@ const normalize = (v: StoredBucket | null | undefined): Bucket => ({
   servers: v?.servers ?? [],
 });
 
+const minKey = (index: number) => ["metrics", "min", index];
+const fineKey = (index: number) => ["metrics", "fine", index];
+const hourKey = (index: number) => ["metrics", "hour", index];
+const dayKey = (index: number) => ["metrics", "day", index];
+const allKey = ["metrics", "all"];
+
+const merge = (base: Bucket, add: Bucket): Bucket => ({
+  messages: base.messages + add.messages,
+  updates: base.updates + add.updates,
+  servers: [...new Set([...base.servers, ...add.servers])],
+});
+
+const pruneRes = async (
+  prefix: Deno.KvKey,
+  index: number,
+  kept: number,
+  stale: Deno.KvKey[],
+) => {
+  for await (const e of kv.list({ prefix }, { batchSize: 500 })) {
+    if ((e.key.at(-1) as number) < index - kept) stale.push(e.key);
+  }
+};
+
+const pruneOld = async (
+  min: number,
+  fine: number,
+  hour: number,
+  day: number,
+) => {
+  try {
+    const stale: Deno.KvKey[] = [];
+    await pruneRes(["metrics", "min"], min, MIN_KEPT, stale);
+    await pruneRes(["metrics", "fine"], fine, FINE_KEPT, stale);
+    await pruneRes(["metrics", "hour"], hour, HOUR_KEPT, stale);
+    await pruneRes(["metrics", "day"], day, DAY_KEPT, stale);
+    await Promise.all(stale.map((k) => kv.delete(k)));
+  } catch (err) {
+    console.error(new Date(), "Failed to prune metrics buckets", err);
+  }
+};
+
 /**
  * One-time cleanup: rewrite any bucket still holding a legacy `lobbies` field or
  * a non-finite (NaN) count, so the stored data matches the current shape. Also
- * backfills the all-time bucket from the daily buckets if it's behind — the NaN
- * repair reset it to zero, and since tracking just began the daily sum is the
- * true all-time total. Idempotent and cheap.
+ * backfills the all-time bucket from the daily buckets if it's behind — an
+ * earlier NaN repair reset it to zero. Idempotent and cheap.
  */
 export const repairMetrics = async () => {
   try {
@@ -54,12 +103,6 @@ export const repairMetrics = async () => {
         { batchSize: 500 },
       )
     ) {
-      // Drop the old hourly buckets; sub-day windows now use 5-minute buckets.
-      if (e.key[1] === "hour") {
-        await kv.delete(e.key);
-        fixed++;
-        continue;
-      }
       const v = e.value;
       const clean = normalize(v);
       if (
@@ -101,35 +144,6 @@ export const repairMetrics = async () => {
   }
 };
 
-const fineKey = (index: number) => ["metrics", "fine", index];
-const dayKey = (index: number) => ["metrics", "day", index];
-const allKey = ["metrics", "all"];
-
-const merge = (base: Bucket, add: Bucket): Bucket => ({
-  messages: base.messages + add.messages,
-  updates: base.updates + add.updates,
-  servers: [...new Set([...base.servers, ...add.servers])],
-});
-
-const pruneOld = async (fine: number, day: number) => {
-  try {
-    const stale: Deno.KvKey[] = [];
-    for await (
-      const e of kv.list({ prefix: ["metrics", "fine"] }, { batchSize: 500 })
-    ) {
-      if ((e.key.at(-1) as number) < fine - FINE_KEPT) stale.push(e.key);
-    }
-    for await (
-      const e of kv.list({ prefix: ["metrics", "day"] }, { batchSize: 500 })
-    ) {
-      if ((e.key.at(-1) as number) < day - DAYS_KEPT) stale.push(e.key);
-    }
-    await Promise.all(stale.map((k) => kv.delete(k)));
-  } catch (err) {
-    console.error(new Date(), "Failed to prune metrics buckets", err);
-  }
-};
-
 /**
  * Record a cycle's worth of activity. `servers` should be the Discord servers
  * the counted `messages` were posted to. No-ops when there's nothing to record.
@@ -140,11 +154,15 @@ export const recordMetrics = async (
 ) => {
   if (!add.messages && !add.updates) return;
   try {
+    const min = Math.floor(now / MIN);
     const fine = Math.floor(now / FINE);
+    const hour = Math.floor(now / HOUR);
     const day = Math.floor(now / DAY);
 
-    const [fineB, dayB, allB] = await Promise.all([
+    const [minB, fineB, hourB, dayB, allB] = await Promise.all([
+      kv.get<StoredBucket>(minKey(min)),
       kv.get<StoredBucket>(fineKey(fine)),
+      kv.get<StoredBucket>(hourKey(hour)),
       kv.get<StoredBucket>(dayKey(day)),
       kv.get<StoredBucket>(allKey),
     ]);
@@ -156,14 +174,16 @@ export const recordMetrics = async (
     };
 
     await Promise.all([
+      kv.set(minKey(min), merge(normalize(minB.value), sample)),
       kv.set(fineKey(fine), merge(normalize(fineB.value), sample)),
+      kv.set(hourKey(hour), merge(normalize(hourB.value), sample)),
       kv.set(dayKey(day), merge(normalize(dayB.value), sample)),
       kv.set(allKey, merge(normalize(allB.value), sample)),
     ]);
 
     // Sweep expired buckets about once an hour, on the first write to a new
-    // bucket that lands on an hour boundary.
-    if (!fineB.value && fine % (HOUR / FINE) === 0) await pruneOld(fine, day);
+    // minute bucket that lands on an hour boundary.
+    if (!minB.value && min % 60 === 0) await pruneOld(min, fine, hour, day);
   } catch (err) {
     console.error(new Date(), "Failed to record metrics", err);
   }
@@ -176,14 +196,16 @@ export type MetricsWindow = {
   servers: number;
 };
 
-const windows: { label: string; ms: number; daily: boolean }[] = [
-  { label: "1h", ms: HOUR, daily: false },
-  { label: "24h", ms: DAY, daily: false },
-  { label: "7d", ms: 7 * DAY, daily: true },
-  { label: "30d", ms: 30 * DAY, daily: true },
-  { label: "90d", ms: 90 * DAY, daily: true },
-  { label: "1y", ms: 365 * DAY, daily: true },
-];
+type Resolution = "min" | "fine" | "hour" | "day";
+const windows: { label: string; ms: number; size: number; res: Resolution }[] =
+  [
+    { label: "1h", ms: HOUR, size: MIN, res: "min" },
+    { label: "24h", ms: DAY, size: FINE, res: "fine" },
+    { label: "7d", ms: 7 * DAY, size: HOUR, res: "hour" },
+    { label: "30d", ms: 30 * DAY, size: DAY, res: "day" },
+    { label: "90d", ms: 90 * DAY, size: DAY, res: "day" },
+    { label: "1y", ms: 365 * DAY, size: DAY, res: "day" },
+  ];
 
 const readBuckets = async (
   prefix: Deno.KvKey,
@@ -195,42 +217,64 @@ const readBuckets = async (
   return map;
 };
 
+// Sum a window from its buckets, weighting the trailing boundary bucket by the
+// fraction that falls inside the window. The current (leading) bucket is counted
+// whole: its contents only span up to now, so all of it is in the window. Server
+// counts can't be fractioned, so any overlapping bucket contributes its set.
+const windowed = (
+  source: Map<number, Bucket>,
+  size: number,
+  ms: number,
+  now: number,
+): MetricsWindow => {
+  const start = now - ms;
+  let messages = 0;
+  let updates = 0;
+  const servers = new Set<string>();
+  for (const [index, b] of source) {
+    const bStart = index * size;
+    const bEnd = bStart + size;
+    if (bEnd <= start || bStart >= now) continue;
+    const weight = bStart < start ? (bEnd - start) / size : 1;
+    messages += b.messages * weight;
+    updates += b.updates * weight;
+    for (const s of b.servers) servers.add(s);
+  }
+  return {
+    label: "",
+    messages: Math.round(messages),
+    updates: Math.round(updates),
+    servers: servers.size,
+  };
+};
+
 let cache: { at: number; summary: MetricsWindow[] } | undefined;
 const CACHE_MS = 60_000;
 
-/**
- * Summarize activity across each rolling window. Counts are over-approximate at
- * the bucket boundary (the oldest bucket touched is included whole), which is
- * plenty precise for a usage dashboard. Cached for a minute.
- */
-export const getMetricsSummary = async (): Promise<MetricsWindow[]> => {
-  if (cache && Date.now() - cache.at < CACHE_MS) return cache.summary;
+/** Summarize activity across each rolling window. Cached for a minute. */
+export const getMetricsSummary = async (
+  now = Date.now(),
+): Promise<MetricsWindow[]> => {
+  if (cache && now - cache.at < CACHE_MS) return cache.summary;
 
-  const now = Date.now();
-  const [fine, daily, all] = await Promise.all([
+  const [min, fine, hour, day, all] = await Promise.all([
+    readBuckets(["metrics", "min"]),
     readBuckets(["metrics", "fine"]),
+    readBuckets(["metrics", "hour"]),
     readBuckets(["metrics", "day"]),
     kv.get<StoredBucket>(allKey),
   ]);
+  const sources: Record<Resolution, Map<number, Bucket>> = {
+    min,
+    fine,
+    hour,
+    day,
+  };
 
-  const summary: MetricsWindow[] = windows.map(
-    ({ label, ms, daily: byDay }) => {
-      const size = byDay ? DAY : FINE;
-      const cutoff = Math.floor((now - ms) / size);
-      const source = byDay ? daily : fine;
-
-      let messages = 0;
-      let updates = 0;
-      const servers = new Set<string>();
-      for (const [index, b] of source) {
-        if (index < cutoff) continue;
-        messages += b.messages;
-        updates += b.updates;
-        for (const s of b.servers) servers.add(s);
-      }
-      return { label, messages, updates, servers: servers.size };
-    },
-  );
+  const summary: MetricsWindow[] = windows.map((w) => ({
+    ...windowed(sources[w.res], w.size, w.ms, now),
+    label: w.label,
+  }));
 
   const allB = normalize(all.value);
   summary.push({
