@@ -47,6 +47,13 @@ export const metricsHTML = (metrics: MetricsWindow[]) =>
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+const fmtDuration = (ms: number) => {
+  const minutes = Math.round(ms / 60000);
+  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60 * 24) return `${Math.round(minutes / 6) / 10}h`;
+  return `${Math.round(minutes / 144) / 10}d`;
+};
+
 export const uptimeHTML = (services: ServiceUptime[]) =>
   services.map((s) => {
     const pct = s.overallTotal
@@ -66,10 +73,13 @@ export const uptimeHTML = (services: ServiceUptime[]) =>
         : ratio >= 0.7
         ? "warn"
         : "down";
-      const title = d.total
-        ? `${date}: ${(ratio * 100).toFixed(2)}% up`
-        : `${date}: no data`;
-      return `<span class="ubar ${cls}" title="${title}"></span>`;
+      const downMs = d.total - d.up;
+      const tip = d.total
+        ? `<strong>${date}</strong>${(ratio * 100).toFixed(2)}% uptime${
+          downMs >= 60000 ? ` &middot; ${fmtDuration(downMs)} down` : ""
+        }`
+        : `<strong>${date}</strong>Not monitored`;
+      return `<span class="ubar ${cls}"><span class="utip">${tip}</span></span>`;
     }).join("");
     return `<div class="uptime-row"><div class="uptime-head"><span class="uptime-label">${s.label}</span><span class="uptime-pct">${pct}</span></div><div class="uptime-bars">${bars}</div></div>`;
   }).join("");
@@ -138,11 +148,51 @@ export const getStatus: Handler = async () => {
   .uptime-label { color: #ccc }
   .uptime-pct { color: #888; font-variant-numeric: tabular-nums }
   .uptime-bars { display: flex; gap: 2px; height: 28px }
-  .ubar { flex: 1 1 0; min-width: 2px; border-radius: 1px; background: #2a2a2a }
+  .ubar {
+    position: relative;
+    flex: 1 1 0; min-width: 2px; border-radius: 1px; background: #2a2a2a;
+    transition: transform 0.08s ease;
+  }
   .ubar.up { background: #4ec97a }
   .ubar.warn { background: #e6a500 }
   .ubar.down { background: #e05252 }
   .ubar.nodata { background: #2a2a2a }
+  .ubar:hover { transform: scaleY(1.12) }
+  .utip {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    padding: 6px 10px;
+    background: #1d1d1d;
+    border: 1px solid #333;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    font-size: 11px;
+    line-height: 1.5;
+    color: #aaa;
+    white-space: nowrap;
+    text-align: center;
+    pointer-events: none;
+    z-index: 10;
+  }
+  .utip strong {
+    display: block;
+    color: #fff;
+    font-weight: 500;
+    margin-bottom: 1px;
+  }
+  .utip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+  }
+  .ubar:hover .utip { display: block }
   table { width: 100%; border-collapse: collapse; table-layout: fixed }
   thead { position: sticky; top: 0; z-index: 1; background: #111 }
   th {
