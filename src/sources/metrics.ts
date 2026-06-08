@@ -5,16 +5,17 @@ import { kv } from "./kv.ts";
 // rolling time windows for the status page.
 //
 // We keep two resolutions of time buckets plus a single all-time aggregate:
-//   - hourly buckets cover the <= 1 day windows
+//   - 5-minute buckets cover the <= 1 day windows (1h, 24h)
 //   - daily buckets cover the > 1 day windows
 // The bot serves a bounded number of guilds, so the per-bucket server set stays
 // small and unioning them to count distinct servers is cheap.
 
+const FINE = 5 * 60 * 1000; // 5-minute resolution for sub-day windows
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 
 // Retain a little past each window so the largest window always has full data.
-const HOURS_KEPT = 48; // covers the 24h window
+const FINE_KEPT = 300; // 5-min buckets ≈ 25h, covers the 24h window
 const DAYS_KEPT = 400; // covers the 365d window
 
 type Bucket = { messages: number; updates: number; servers: string[] };
@@ -53,6 +54,12 @@ export const repairMetrics = async () => {
         { batchSize: 500 },
       )
     ) {
+      // Drop the old hourly buckets; sub-day windows now use 5-minute buckets.
+      if (e.key[1] === "hour") {
+        await kv.delete(e.key);
+        fixed++;
+        continue;
+      }
       const v = e.value;
       const clean = normalize(v);
       if (
@@ -94,7 +101,7 @@ export const repairMetrics = async () => {
   }
 };
 
-const hourKey = (index: number) => ["metrics", "hour", index];
+const fineKey = (index: number) => ["metrics", "fine", index];
 const dayKey = (index: number) => ["metrics", "day", index];
 const allKey = ["metrics", "all"];
 
@@ -104,13 +111,13 @@ const merge = (base: Bucket, add: Bucket): Bucket => ({
   servers: [...new Set([...base.servers, ...add.servers])],
 });
 
-const pruneOld = async (hour: number, day: number) => {
+const pruneOld = async (fine: number, day: number) => {
   try {
     const stale: Deno.KvKey[] = [];
     for await (
-      const e of kv.list({ prefix: ["metrics", "hour"] }, { batchSize: 500 })
+      const e of kv.list({ prefix: ["metrics", "fine"] }, { batchSize: 500 })
     ) {
-      if ((e.key.at(-1) as number) < hour - HOURS_KEPT) stale.push(e.key);
+      if ((e.key.at(-1) as number) < fine - FINE_KEPT) stale.push(e.key);
     }
     for await (
       const e of kv.list({ prefix: ["metrics", "day"] }, { batchSize: 500 })
@@ -129,15 +136,15 @@ const pruneOld = async (hour: number, day: number) => {
  */
 export const recordMetrics = async (
   add: { messages: number; updates: number; servers: string[] },
+  now = Date.now(),
 ) => {
   if (!add.messages && !add.updates) return;
   try {
-    const now = Date.now();
-    const hour = Math.floor(now / HOUR);
+    const fine = Math.floor(now / FINE);
     const day = Math.floor(now / DAY);
 
-    const [hourB, dayB, allB] = await Promise.all([
-      kv.get<StoredBucket>(hourKey(hour)),
+    const [fineB, dayB, allB] = await Promise.all([
+      kv.get<StoredBucket>(fineKey(fine)),
       kv.get<StoredBucket>(dayKey(day)),
       kv.get<StoredBucket>(allKey),
     ]);
@@ -149,14 +156,14 @@ export const recordMetrics = async (
     };
 
     await Promise.all([
-      kv.set(hourKey(hour), merge(normalize(hourB.value), sample)),
+      kv.set(fineKey(fine), merge(normalize(fineB.value), sample)),
       kv.set(dayKey(day), merge(normalize(dayB.value), sample)),
       kv.set(allKey, merge(normalize(allB.value), sample)),
     ]);
 
-    // A freshly created hour bucket means the clock rolled over — a good, cheap
-    // moment (once an hour) to sweep away expired buckets.
-    if (!hourB.value) await pruneOld(hour, day);
+    // Sweep expired buckets about once an hour, on the first write to a new
+    // bucket that lands on an hour boundary.
+    if (!fineB.value && fine % (HOUR / FINE) === 0) await pruneOld(fine, day);
   } catch (err) {
     console.error(new Date(), "Failed to record metrics", err);
   }
@@ -200,17 +207,17 @@ export const getMetricsSummary = async (): Promise<MetricsWindow[]> => {
   if (cache && Date.now() - cache.at < CACHE_MS) return cache.summary;
 
   const now = Date.now();
-  const [hourly, daily, all] = await Promise.all([
-    readBuckets(["metrics", "hour"]),
+  const [fine, daily, all] = await Promise.all([
+    readBuckets(["metrics", "fine"]),
     readBuckets(["metrics", "day"]),
     kv.get<StoredBucket>(allKey),
   ]);
 
   const summary: MetricsWindow[] = windows.map(
     ({ label, ms, daily: byDay }) => {
-      const size = byDay ? DAY : HOUR;
+      const size = byDay ? DAY : FINE;
       const cutoff = Math.floor((now - ms) / size);
-      const source = byDay ? daily : hourly;
+      const source = byDay ? daily : fine;
 
       let messages = 0;
       let updates = 0;
