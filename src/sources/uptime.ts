@@ -34,7 +34,7 @@ const services: { key: string; label: string; note?: string }[] = [
     label: "wc3maps",
     note: "wc3maps is only checked while wc3stats is down, so this is its " +
       "availability during those fallback periods — not its overall uptime, " +
-      "which we can't observe while wc3stats is up.",
+      "which we don't observe while wc3stats is up.",
   },
 ];
 
