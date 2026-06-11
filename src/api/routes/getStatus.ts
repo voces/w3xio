@@ -81,7 +81,10 @@ export const uptimeHTML = (services: ServiceUptime[]) =>
         : `<strong>${date}</strong>Not monitored`;
       return `<span class="ubar ${cls}"><span class="utip">${tip}</span></span>`;
     }).join("");
-    return `<div class="uptime-row"><div class="uptime-head"><span class="uptime-label">${s.label}</span><span class="uptime-pct">${pct}</span></div><div class="uptime-bars">${bars}</div></div>`;
+    const tag = s.note
+      ? `<span class="uptime-tag">fallback<span class="uptime-note">${s.note}</span></span>`
+      : "";
+    return `<div class="uptime-row"><div class="uptime-head"><span class="uptime-label">${s.label}${tag}</span><span class="uptime-pct">${pct}</span></div><div class="uptime-bars">${bars}</div></div>`;
   }).join("");
 
 export const getStatus: Handler = async () => {
@@ -193,6 +196,47 @@ export const getStatus: Handler = async () => {
     border-top-color: #333;
   }
   .ubar:hover .utip { display: block }
+  .uptime-tag {
+    position: relative;
+    margin-left: 7px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #888;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 1px 5px;
+    cursor: help;
+  }
+  .uptime-note {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    display: none;
+    width: 250px;
+    max-width: 70vw;
+    padding: 8px 10px;
+    background: #1d1d1d;
+    border: 1px solid #333;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    font-size: 11px;
+    line-height: 1.5;
+    color: #aaa;
+    text-transform: none;
+    letter-spacing: normal;
+    z-index: 10;
+    pointer-events: none;
+  }
+  .uptime-note::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 16px;
+    border: 5px solid transparent;
+    border-top-color: #333;
+  }
+  .uptime-tag:hover .uptime-note { display: block }
   table { width: 100%; border-collapse: collapse; table-layout: fixed }
   thead { position: sticky; top: 0; z-index: 1; background: #111 }
   th {

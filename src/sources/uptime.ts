@@ -26,11 +26,17 @@ const MAX_GAP = 90 * 1000;
 const DAYS_SHOWN = 90;
 const DAYS_KEPT = DAYS_SHOWN + 2;
 
-const services = [
+const services: { key: string; label: string; note?: string }[] = [
   { key: "bot", label: "Live Lobbies" },
   { key: "wc3stats", label: "wc3stats" },
-  { key: "wc3maps", label: "wc3maps" },
-] as const;
+  {
+    key: "wc3maps",
+    label: "wc3maps",
+    note: "wc3maps is only checked while wc3stats is down, so this is its " +
+      "availability during those fallback periods — not its overall uptime, " +
+      "which we can't observe while wc3stats is up.",
+  },
+];
 
 type Day = { up: number; total: number };
 
@@ -154,6 +160,7 @@ export const recordUptime = async (liveness: Liveness, now = Date.now()) => {
 export type UptimeDay = { day: number; up: number; total: number };
 export type ServiceUptime = {
   label: string;
+  note?: string;
   days: UptimeDay[];
   overallUp: number;
   overallTotal: number;
@@ -169,26 +176,28 @@ export const getUptimeSummary = async (): Promise<ServiceUptime[]> => {
   const today = Math.floor(Date.now() / DAY);
   const start = today - (DAYS_SHOWN - 1);
 
-  const summary = await Promise.all(services.map(async ({ key, label }) => {
-    const buckets = new Map<number, Day>();
-    for await (
-      const e of kv.list<Day>({ prefix: ["uptime", key] }, { batchSize: 500 })
-    ) {
-      const day = e.key.at(-1);
-      if (typeof day === "number") buckets.set(day, e.value);
-    }
+  const summary = await Promise.all(
+    services.map(async ({ key, label, note }) => {
+      const buckets = new Map<number, Day>();
+      for await (
+        const e of kv.list<Day>({ prefix: ["uptime", key] }, { batchSize: 500 })
+      ) {
+        const day = e.key.at(-1);
+        if (typeof day === "number") buckets.set(day, e.value);
+      }
 
-    const days: UptimeDay[] = [];
-    let overallUp = 0;
-    let overallTotal = 0;
-    for (let d = start; d <= today; d++) {
-      const b = buckets.get(d) ?? { up: 0, total: 0 };
-      days.push({ day: d, up: b.up, total: b.total });
-      overallUp += b.up;
-      overallTotal += b.total;
-    }
-    return { label, days, overallUp, overallTotal };
-  }));
+      const days: UptimeDay[] = [];
+      let overallUp = 0;
+      let overallTotal = 0;
+      for (let d = start; d <= today; d++) {
+        const b = buckets.get(d) ?? { up: 0, total: 0 };
+        days.push({ day: d, up: b.up, total: b.total });
+        overallUp += b.up;
+        overallTotal += b.total;
+      }
+      return { label, note, days, overallUp, overallTotal };
+    }),
+  );
 
   cache = { at: Date.now(), summary };
   return summary;
