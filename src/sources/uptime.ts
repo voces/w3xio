@@ -5,10 +5,13 @@ import { kv } from "./kv.ts";
 // — so a day's uptime is up/total and the headline figure is the sum over the
 // window.
 //
-// The bot can't record while it's down, so we measure its uptime from the gap
-// between heartbeats: each cycle we attribute the elapsed time since the last
+// The bot ("Live Lobbies") can't record while it's down, so we measure from the
+// gap between heartbeats: each cycle attributes the elapsed time since the last
 // beat as "up", unless the gap is too large (a restart/outage), in which case
-// only a small grace window counts as up and the rest is downtime.
+// only a small grace window counts and the rest is downtime. "Up" also requires
+// a feed to be available — if both wc3stats and wc3maps are down the bot can't
+// serve lobbies, so that counts as downtime even though the process is alive.
+// This makes Live Lobbies the OR of the two feeds (plus process liveness).
 //
 // wc3stats / wc3maps are only credited time we actually observed them. We don't
 // probe wc3maps while wc3stats is online, so on days that stayed on wc3stats the
@@ -113,9 +116,13 @@ export const recordUptime = async (liveness: Liveness, now = Date.now()) => {
     // grace window and the rest of the gap is the bot's downtime.
     const coveredEnd = Math.min(now, lastBeat + MAX_GAP);
 
+    // The lobby service is functional whenever a feed is available; if both are
+    // down (or the process is) it can't serve lobbies, so that's downtime.
+    const feedUp = liveness.wc3statsUp || liveness.wc3mapsUp;
+
     await Promise.all([
-      // Bot: the whole gap counts toward total, only the covered part as up.
-      accrue("bot", lastBeat, now, lastBeat, coveredEnd),
+      // Live Lobbies: up = process alive (covered window) AND a feed available.
+      accrue("bot", lastBeat, now, lastBeat, feedUp ? coveredEnd : lastBeat),
       // Sources: only credit time we actually observed (the covered window).
       accrue(
         "wc3stats",
