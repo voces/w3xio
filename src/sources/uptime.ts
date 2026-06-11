@@ -5,10 +5,13 @@ import { kv } from "./kv.ts";
 // — so a day's uptime is up/total and the headline figure is the sum over the
 // window.
 //
-// The bot can't record while it's down, so we measure its uptime from the gap
-// between heartbeats: each cycle we attribute the elapsed time since the last
+// The bot ("Live Lobbies") can't record while it's down, so we measure from the
+// gap between heartbeats: each cycle attributes the elapsed time since the last
 // beat as "up", unless the gap is too large (a restart/outage), in which case
-// only a small grace window counts as up and the rest is downtime.
+// only a small grace window counts and the rest is downtime. "Up" also requires
+// a feed to be available — if both wc3stats and wc3maps are down the bot can't
+// serve lobbies, so that counts as downtime even though the process is alive.
+// This makes Live Lobbies the OR of the two feeds (plus process liveness).
 //
 // wc3stats / wc3maps are only credited time we actually observed them. We don't
 // probe wc3maps while wc3stats is online, so on days that stayed on wc3stats the
@@ -23,11 +26,17 @@ const MAX_GAP = 90 * 1000;
 const DAYS_SHOWN = 90;
 const DAYS_KEPT = DAYS_SHOWN + 2;
 
-const services = [
+const services: { key: string; label: string; note?: string }[] = [
   { key: "bot", label: "Live Lobbies" },
   { key: "wc3stats", label: "wc3stats" },
-  { key: "wc3maps", label: "wc3maps" },
-] as const;
+  {
+    key: "wc3maps",
+    label: "wc3maps",
+    note: "wc3maps is only checked while wc3stats is down, so this is its " +
+      "availability during those fallback periods — not its overall uptime, " +
+      "which we don't observe while wc3stats is up.",
+  },
+];
 
 type Day = { up: number; total: number };
 
@@ -113,9 +122,13 @@ export const recordUptime = async (liveness: Liveness, now = Date.now()) => {
     // grace window and the rest of the gap is the bot's downtime.
     const coveredEnd = Math.min(now, lastBeat + MAX_GAP);
 
+    // The lobby service is functional whenever a feed is available; if both are
+    // down (or the process is) it can't serve lobbies, so that's downtime.
+    const feedUp = liveness.wc3statsUp || liveness.wc3mapsUp;
+
     await Promise.all([
-      // Bot: the whole gap counts toward total, only the covered part as up.
-      accrue("bot", lastBeat, now, lastBeat, coveredEnd),
+      // Live Lobbies: up = process alive (covered window) AND a feed available.
+      accrue("bot", lastBeat, now, lastBeat, feedUp ? coveredEnd : lastBeat),
       // Sources: only credit time we actually observed (the covered window).
       accrue(
         "wc3stats",
@@ -147,6 +160,7 @@ export const recordUptime = async (liveness: Liveness, now = Date.now()) => {
 export type UptimeDay = { day: number; up: number; total: number };
 export type ServiceUptime = {
   label: string;
+  note?: string;
   days: UptimeDay[];
   overallUp: number;
   overallTotal: number;
@@ -162,26 +176,28 @@ export const getUptimeSummary = async (): Promise<ServiceUptime[]> => {
   const today = Math.floor(Date.now() / DAY);
   const start = today - (DAYS_SHOWN - 1);
 
-  const summary = await Promise.all(services.map(async ({ key, label }) => {
-    const buckets = new Map<number, Day>();
-    for await (
-      const e of kv.list<Day>({ prefix: ["uptime", key] }, { batchSize: 500 })
-    ) {
-      const day = e.key.at(-1);
-      if (typeof day === "number") buckets.set(day, e.value);
-    }
+  const summary = await Promise.all(
+    services.map(async ({ key, label, note }) => {
+      const buckets = new Map<number, Day>();
+      for await (
+        const e of kv.list<Day>({ prefix: ["uptime", key] }, { batchSize: 500 })
+      ) {
+        const day = e.key.at(-1);
+        if (typeof day === "number") buckets.set(day, e.value);
+      }
 
-    const days: UptimeDay[] = [];
-    let overallUp = 0;
-    let overallTotal = 0;
-    for (let d = start; d <= today; d++) {
-      const b = buckets.get(d) ?? { up: 0, total: 0 };
-      days.push({ day: d, up: b.up, total: b.total });
-      overallUp += b.up;
-      overallTotal += b.total;
-    }
-    return { label, days, overallUp, overallTotal };
-  }));
+      const days: UptimeDay[] = [];
+      let overallUp = 0;
+      let overallTotal = 0;
+      for (let d = start; d <= today; d++) {
+        const b = buckets.get(d) ?? { up: 0, total: 0 };
+        days.push({ day: d, up: b.up, total: b.total });
+        overallUp += b.up;
+        overallTotal += b.total;
+      }
+      return { label, note, days, overallUp, overallTotal };
+    }),
+  );
 
   cache = { at: Date.now(), summary };
   return summary;
