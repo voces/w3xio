@@ -40,10 +40,31 @@ const lobbySort = (a: Lobby, b: Lobby) =>
     ? -1
     : 0;
 
-export const metricsHTML = (metrics: MetricsWindow[]) =>
-  metrics.map((m) =>
-    `<div class="metric"><span class="metric-label">${m.label}</span><span class="metric-val">${m.messages.toLocaleString()} messages</span><span class="metric-sub">${m.servers.toLocaleString()} servers &middot; ${m.updates.toLocaleString()} updates</span></div>`
-  ).join("");
+export const metricsHTML = (metrics: MetricsWindow[]) => {
+  const n = (v: number) => v.toLocaleString();
+  // Wide screens: metrics as rows, windows as columns. Narrow: one row per
+  // window. Both are rendered; CSS shows whichever fits.
+  const cols = `<table class="metrics-cols"><thead><tr><th></th>${
+    metrics.map((m) => `<th>${m.label}</th>`).join("")
+  }</tr></thead><tbody><tr class="primary"><th>Messages</th>${
+    metrics.map((m) => `<td>${n(m.messages)}</td>`).join("")
+  }</tr><tr><th>Servers</th>${
+    metrics.map((m) => `<td>${n(m.servers)}</td>`).join("")
+  }</tr><tr><th>Updates</th>${
+    metrics.map((m) => `<td>${n(m.updates)}</td>`).join("")
+  }</tr></tbody></table>`;
+  const rows =
+    `<table class="metrics-rows"><thead><tr><th>Window</th><th>Messages</th><th>Servers</th><th>Updates</th></tr></thead><tbody>${
+      metrics.map((m) =>
+        `<tr><th>${m.label}</th><td class="msgs">${
+          n(m.messages)
+        }</td><td class="sub">${n(m.servers)}</td><td class="sub">${
+          n(m.updates)
+        }</td></tr>`
+      ).join("")
+    }</tbody></table>`;
+  return cols + rows;
+};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -123,23 +144,42 @@ export const getStatus: Handler = async () => {
   .meta span { white-space: nowrap }
   .meta .up { color: #4ec97a }
   .meta .down { color: #e05252 }
-  .metrics { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px }
-  .metric {
-    flex: 1 1 auto; min-width: 104px;
-    background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
-    padding: 10px 12px;
+  .metrics { margin-bottom: 24px }
+  .metrics table { width: 100%; border-collapse: collapse }
+  .metrics-cols { table-layout: fixed }
+  .metrics-cols th, .metrics-cols td {
+    padding: 8px 10px; text-align: right; font-variant-numeric: tabular-nums;
   }
-  .metric-label {
-    display: block; font-size: 11px; text-transform: uppercase;
-    letter-spacing: 0.5px; color: #888; margin-bottom: 5px;
+  .metrics-cols thead th {
+    color: #888; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 500; border-bottom: 1px solid #2a2a2a;
   }
-  .metric-val {
-    display: block; color: #fff; font-size: 16px; font-weight: 500;
-    font-variant-numeric: tabular-nums;
+  .metrics-cols thead th:first-child, .metrics-cols tbody th { text-align: left }
+  .metrics-cols tbody th { color: #888; font-weight: 400; font-size: 12px }
+  .metrics-cols tr.primary td { color: #fff; font-weight: 500; font-size: 15px }
+  .metrics-cols tbody tr + tr td,
+  .metrics-cols tbody tr + tr th { color: #777; font-size: 12px }
+  .metrics-rows { display: none }
+  .metrics-rows th, .metrics-rows td {
+    padding: 7px 10px; border-bottom: 1px solid #1c1c1c;
   }
-  .metric-sub {
-    display: block; font-size: 11px; color: #666; margin-top: 2px;
-    font-variant-numeric: tabular-nums;
+  .metrics-rows thead th {
+    color: #888; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; font-weight: 500; text-align: right;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  .metrics-rows thead th:first-child { text-align: left }
+  .metrics-rows tbody th {
+    text-align: left; color: #aaa; font-weight: 500; font-size: 12px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .metrics-rows td { text-align: right; font-variant-numeric: tabular-nums }
+  .metrics-rows td.msgs { color: #fff; font-weight: 500 }
+  .metrics-rows td.sub { color: #777; font-size: 12px }
+  .metrics-rows tbody tr:hover td { background: #1a1a1a }
+  @media (max-width: 720px) {
+    .metrics-cols { display: none }
+    .metrics-rows { display: table }
   }
   .uptime { margin-bottom: 24px }
   .uptime-row { margin-bottom: 12px }
