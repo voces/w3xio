@@ -176,7 +176,6 @@ export const getStatus: Handler = async () => {
   .metrics-rows td { text-align: right; font-variant-numeric: tabular-nums }
   .metrics-rows td.msgs { color: #fff; font-weight: 500 }
   .metrics-rows td.sub { color: #777; font-size: 12px }
-  .metrics-rows tbody tr:hover td { background: #1a1a1a }
   @media (max-width: 720px) {
     .metrics-cols { display: none }
     .metrics-rows { display: table }
@@ -277,9 +276,9 @@ export const getStatus: Handler = async () => {
     border-top-color: #333;
   }
   .uptime-tag:hover .uptime-note { display: block }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed }
-  thead { position: sticky; top: 0; z-index: 1; background: #111 }
-  th {
+  .lobbies { width: 100%; border-collapse: collapse; table-layout: fixed }
+  .lobbies thead { position: sticky; top: 0; z-index: 1; background: #111 }
+  .lobbies th {
     text-align: left;
     font-weight: 500;
     color: #888;
@@ -289,8 +288,8 @@ export const getStatus: Handler = async () => {
     padding: 8px 10px;
     border-bottom: 1px solid #2a2a2a;
   }
-  td { padding: 6px 10px; border-bottom: 1px solid #1e1e1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-  tr:hover td { background: #1a1a1a }
+  .lobbies td { padding: 6px 10px; border-bottom: 1px solid #1e1e1e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+  .lobbies tr:hover td { background: #1a1a1a }
   .col-map { width: 28% }
   .col-name { width: 22% }
   .col-host { width: 12% }
@@ -336,9 +335,9 @@ export const getStatus: Handler = async () => {
   @media (max-width: 720px) {
     body { padding: 16px }
     .meta { gap: 10px; margin-bottom: 14px }
-    table { table-layout: auto; display: block }
-    thead { position: static; background: transparent; display: block }
-    thead tr.col-headers { display: none }
+    .lobbies { table-layout: auto; display: block }
+    .lobbies thead { position: static; background: transparent; display: block }
+    .lobbies thead tr.col-headers { display: none }
     thead .filter-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -396,8 +395,8 @@ export const getStatus: Handler = async () => {
       display: inline;
       flex: 1 1 auto;
     }
-    tbody { display: block }
-    tbody tr {
+    .lobbies tbody { display: block }
+    .lobbies tbody tr {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
@@ -406,8 +405,8 @@ export const getStatus: Handler = async () => {
       column-gap: 8px;
       row-gap: 2px;
     }
-    tbody tr:hover td { background: transparent }
-    tbody td {
+    .lobbies tbody tr:hover td { background: transparent }
+    .lobbies tbody td {
       padding: 0;
       border: none;
       white-space: nowrap;
@@ -593,7 +592,7 @@ export const getStatus: Handler = async () => {
   </div>
   <div class="metrics" id="metrics">${metricsHTML(metrics)}</div>
   <div class="uptime">${uptimeHTML(uptime)}</div>
-  <table>
+  <table class="lobbies">
     <thead>
       <tr class="col-headers">
         <th class="col-map">File</th>
