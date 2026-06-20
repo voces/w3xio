@@ -541,7 +541,7 @@ export const getStatus: Handler = async () => {
     document.getElementById("wc3mapsBadge").style.display = liveness.wc3mapsChecked ? "" : "none";
     if (metrics) document.getElementById("metrics").innerHTML = metricsHTML(metrics);
 
-    morphdom(document.querySelector("tbody"), \`<tbody>\${lobbies.map(l => \`<tr id="\${l.id}">
+    morphdom(document.getElementById("lobby-body"), \`<tbody id="lobby-body">\${lobbies.map(l => \`<tr id="\${l.id}">
       <td class="col-map" title="\${l.map}">\${l.map}</td>
       <td class="col-name" title="\${l.name}">\${l.name}</td>
       <td class="col-host">\${l.host}</td>
@@ -616,7 +616,7 @@ export const getStatus: Handler = async () => {
         <td class="checkbox-cell"><label><input type="checkbox" id="tracked" oninput="update()" title="Tracked only" /><span class="checkbox-label-text">Tracked only</span></label></td>
       </tr>
     </thead>
-    <tbody>
+    <tbody id="lobby-body">
 ${
       lobbies.map((l) =>
         `      <tr id="${l.id}">
