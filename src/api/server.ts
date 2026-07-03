@@ -7,6 +7,7 @@ import { APIError } from "./ErrorCode.ts";
 import { ZodError } from "zod";
 import { routes } from "./routes.ts";
 import { SerializableResponse } from "./types.ts";
+import { handleInteraction } from "../bot/interactions.ts";
 
 const handle = async (req: Request) => {
   const url = new URL(req.url);
@@ -17,6 +18,14 @@ const handle = async (req: Request) => {
       req,
       join("/home/ubuntu/wc3lobbylist/src/w3xio/public", url.pathname),
     );
+  }
+
+  // Discord interactions webhook (folded in from the standalone discord-bot).
+  // Handled before the auth check since it is authenticated via Ed25519
+  // signature verification rather than the API_SECRET header, and it needs the
+  // raw request body (which the generic route dispatch below would consume).
+  if (reqMethod === "post" && url.pathname === "/interactions") {
+    return handleInteraction(req);
   }
 
   if (

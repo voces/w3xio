@@ -27,6 +27,10 @@
     "npm:@discordjs/rest@2.3.0": "2.3.0",
     "npm:discord-api-types@*": "0.37.83",
     "npm:discord-api-types@0.37.83": "0.37.83",
+    "npm:regex-escape@3.4.11": "3.4.11",
+    "npm:safe-regex2@5.0.0": "5.0.0",
+    "npm:sqlstring@2.3.3": "2.3.3",
+    "npm:tweetnacl@1.0.3": "1.0.3",
     "npm:zod@*": "3.23.8",
     "npm:zod@3.23.8": "3.23.8"
   },
@@ -168,8 +172,26 @@
     "magic-bytes.js@1.10.0": {
       "integrity": "sha512-/k20Lg2q8LE5xiaaSkMXk4sfvI+9EGEykFS4b0CHHGWqDYU0bGUFSwchNOMA56D7TCs9GwVTkqe9als1/ns8UQ=="
     },
+    "regex-escape@3.4.11": {
+      "integrity": "sha512-051l4Hl/0HoJwTvNztrWVjoxLiseSfCrDgWqwR1cnGM/nyQSeIjmvti5zZ7HzOmsXDPaJ2k0iFxQ6/WNpJD5wQ=="
+    },
+    "ret@0.5.0": {
+      "integrity": "sha512-I1XxrZSQ+oErkRR4jYbAyEEu2I0avBvvMM5JN+6EBprOGRCs63ENqZ3vjavq8fBw2+62G5LF5XelKwuJpcvcxw=="
+    },
+    "safe-regex2@5.0.0": {
+      "integrity": "sha512-YwJwe5a51WlK7KbOJREPdjNrpViQBI3p4T50lfwPuDhZnE3XGVTlGvi+aolc5+RvxDD6bnUmjVsU9n1eboLUYw==",
+      "dependencies": [
+        "ret"
+      ]
+    },
+    "sqlstring@2.3.3": {
+      "integrity": "sha512-qC9iz2FlN7DQl3+wjwn3802RTyjCx7sDvfQEXchwa6CWOx07/WVfh91gBmQ9fahw8snwGEWU3xGzOt4tFyHLxg=="
+    },
     "tslib@2.8.1": {
       "integrity": "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="
+    },
+    "tweetnacl@1.0.3": {
+      "integrity": "sha512-6rt+RN7aOi1nGMyC4Xa5DdYiukl2UWCbcJft7YhxReBGQD7OAM8Pbxw6YMo4r2diNEA8FEmu32YOn9rhaiE5yw=="
     },
     "undici-types@6.19.8": {
       "integrity": "sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw=="
@@ -194,6 +216,10 @@
       "npm:@discordjs/core@1.2.0",
       "npm:@discordjs/rest@2.3.0",
       "npm:discord-api-types@0.37.83",
+      "npm:regex-escape@3.4.11",
+      "npm:safe-regex2@5.0.0",
+      "npm:sqlstring@2.3.3",
+      "npm:tweetnacl@1.0.3",
       "npm:zod@3.23.8"
     ]
   }

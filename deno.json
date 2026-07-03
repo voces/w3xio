@@ -12,6 +12,10 @@
     "@std/http/": "jsr:/@std/http@^1.0.12/",
     "@std/path/": "jsr:/@std/path@^1.0.8/",
     "discord-api-types/": "npm:/discord-api-types@0.37.83/",
+    "regex-escape": "npm:regex-escape@3.4.11",
+    "safe-regex2": "npm:safe-regex2@5.0.0",
+    "sqlstring": "npm:sqlstring@2.3.3",
+    "tweetnacl": "npm:tweetnacl@1.0.3",
     "zod": "npm:zod@3.23.8"
   }
 }
