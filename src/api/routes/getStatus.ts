@@ -577,12 +577,12 @@ export const getStatus: Handler = async () => {
     <h1><a href="/">Live Lobbies</a> <span class="breadcrumb">&rsaquo; Status</span></h1>
   </header>
   <div class="meta">
-    <span><a href="https://wc3stats.com/gamelist" target="_blank" rel="noopener">wc3stats &#11194;</a> <span id="wc3statsStatus" class="${
+    <span><a href="https://wc3stats.com/gamelist" target="_blank" rel="noopener">wc3stats &#8599;</a> <span id="wc3statsStatus" class="${
       liveness.wc3statsUp ? "up" : "down"
     }">${liveness.wc3statsUp ? "up" : "down"}</span></span>
     <span id="wc3mapsBadge" style="${
       liveness.wc3mapsChecked ? "" : "display:none"
-    }"><a href="https://wc3maps.com/live" target="_blank" rel="noopener">wc3maps &#11194;</a> <span id="wc3mapsStatus" class="${
+    }"><a href="https://wc3maps.com/live" target="_blank" rel="noopener">wc3maps &#8599;</a> <span id="wc3mapsStatus" class="${
       liveness.wc3mapsUp ? "up" : "down"
     }">${liveness.wc3mapsUp ? "up" : "down"}</span></span>
     <span>Updated <span id="lastUpdate">${
