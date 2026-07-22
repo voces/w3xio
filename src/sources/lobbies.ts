@@ -57,9 +57,8 @@ export const getSourceLiveness = () => ({
   wc3mapsChecked,
 });
 
-// Persisted so the active feed survives reboots: we only want to alert the
-// admin on a *true* change of source, not re-announce the same one on every
-// restart.
+// Persisted so the active feed survives reboots: we only want to react to a
+// *true* change of source, not re-run the change handler on every restart.
 let onDataSourceChange: ((source: DataSource) => void) | undefined;
 export const setOnDataSourceChange = (fn: (source: DataSource) => void) => {
   onDataSourceChange = fn;
@@ -81,7 +80,6 @@ const ensureDataSource = (newDataSource: DataSource) => {
   })
     .then((v) => {
       console.log(new Date(), v.description);
-      messageAdmin(v.description);
       if (oldDataSource === "wc3stats") {
         messageAnders("wc3stats down!").then((strike) =>
           strikeLastAndersMessage = strike
