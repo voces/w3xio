@@ -45,6 +45,28 @@ export const db = kvdex({
   },
 });
 
+// We have to remember that we picked a lobby up for far longer than we keep the
+// lobby itself: a feed can serve a closed lobby long after we've finished with
+// it, and the memory has to still be there when it does. wc3maps has been seen
+// replaying lobbies 30h+ old, well past the 24h we retain a dead lobby for
+// replay linking.
+const LOBBY_LEDGER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Deliberately not part of the `lobbies` collection: that collection is scanned
+// in full every cycle, so parking days of cold history in it would grow the hot
+// path. These are point lookups only, and Deno KV expires them for us.
+export const lobbyLedger = {
+  async getFirstSeen(id: string): Promise<number | null> {
+    const value = (await kv.get(["lobbyFirstSeen", id])).value;
+    return typeof value === "number" ? value : null;
+  },
+  async setFirstSeen(id: string, firstSeenAt: number) {
+    await kv.set(["lobbyFirstSeen", id], firstSeenAt, {
+      expireIn: LOBBY_LEDGER_TTL_MS,
+    });
+  },
+};
+
 export const meta = {
   async getReplayOffset() {
     try {

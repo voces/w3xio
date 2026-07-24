@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { discord, messageAdmin, messageAnders } from "./discord.ts";
+import { dropStaleLobbies } from "./staleness.ts";
 
 export const zLobby = z.object({
   host: z.string(),
@@ -136,7 +137,7 @@ const parseWc3stats = (r: Response): Promise<Lobby[]> =>
       ...list.map((l) => l.created).filter((v) => typeof v === "number"),
     );
     if (Date.now() / 1000 - mostRecent > 300) return [];
-    return list;
+    return dropStaleLobbies(list);
   });
 
 const parseWc3maps = async (r: Response): Promise<Lobby[]> => {
@@ -151,7 +152,11 @@ const parseWc3maps = async (r: Response): Promise<Lobby[]> => {
   const list = thGameList.parse(json).data;
   const mostRecent = Math.max(...list.map((l) => l.created));
   if (Date.now() / 1000 - mostRecent > 600) return [];
-  return list;
+  // The gate above only catches a feed that has gone stale as a whole; wc3maps
+  // also holds individual lobbies open long after they close, so drop those too.
+  // It can't empty the list — the check above already proved the newest entry is
+  // minutes old — so source liveness is unaffected.
+  return dropStaleLobbies(list);
 };
 
 export const getLobbies = async (): Promise<
