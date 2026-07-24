@@ -6,7 +6,8 @@ import {
   restoreDataSource,
   setOnDataSourceChange,
 } from "./sources/lobbies.ts";
-import { Alert, db, meta, Rule } from "./sources/kv.ts";
+import { Alert, db, lobbyLedger, meta, Rule } from "./sources/kv.ts";
+import { isKnownInstance } from "./sources/staleness.ts";
 import { discord, messageAdminAndWarn } from "./sources/discord.ts";
 import { DiscordAPIError } from "@discordjs/rest";
 import { AllowedMentionsTypes, APIEmbed } from "discord-api-types/v10";
@@ -371,6 +372,7 @@ const updateLobbies = async () => {
   let pendingReplay = 0;
   let cleared = 0;
   let linked = 0;
+  let ghosts = 0;
   // Metrics count work we actually emit to Discord: each message posted and each
   // live-update edit sent (excluding throttle-shed/failed edits). echoedServers
   // tracks the distinct Discord servers (guilds) we posted to.
@@ -380,6 +382,20 @@ const updateLobbies = async () => {
 
   for (const newLobby of newLobbies) {
     let oldLobby = oldLobbies.find((l) => l.id === newLobby.id);
+
+    // Only consult the ledger when we'd otherwise post: either we have no record
+    // of this lobby, or the only record is a dead one we'd treat as a remake.
+    // Lobbies we're already tracking live skip the lookup entirely.
+    if (!oldLobby || oldLobby.dead) {
+      const firstSeenAt = await lobbyLedger.getFirstSeen(newLobby.id);
+      if (isKnownInstance(newLobby.created, firstSeenAt)) {
+        // A lobby we already handled, resurfacing because a feed never dropped
+        // it. Leave the stored record alone: reposting is the spam we're here to
+        // avoid, and updating would recolour a dead lobby as alive.
+        ghosts++;
+        continue;
+      }
+    }
 
     // If the host remakes with the same name, clear the old lobby first,
     // skipping chance of matching the replay
@@ -391,6 +407,7 @@ const updateLobbies = async () => {
 
     if (!oldLobby) {
       newLobby.messages = await onNewLobby(newLobby, alerts, dataSource);
+      await lobbyLedger.setFirstSeen(newLobby.id, Date.now());
       news++;
       echoedMessages += newLobby.messages.length;
       for (const { channel } of newLobby.messages) {
@@ -500,6 +517,8 @@ const updateLobbies = async () => {
     "linked to replay, and",
     cleared,
     "cleared.",
+    ghosts,
+    "ghosts.",
     replays.length,
     "new replays.",
     "Completed in",
