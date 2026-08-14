@@ -56,13 +56,47 @@ Deno.test("slotsToTeams: strips colour codes from team names", () =>
     [{ name: "Evil Pumpkins", players: ["Clownhunt"] }],
   ));
 
-Deno.test("slotsToTeams: lists computers, naming non-default difficulties", () =>
+Deno.test("slotsToTeams: leaves computers out of a team people are in", () =>
   assertEquals(
     slotsToTeams([
-      computer(0, "Legion", "normal"),
-      computer(0, "Legion", "hard"),
+      taken(0, "Humans", "Clownhunt"),
+      computer(0, "Humans", "normal"),
+      open(0, "Humans"),
     ]),
-    [{ name: "Legion", players: ["Computer", "Computer (hard)"] }],
+    [{ name: "Humans", players: ["Clownhunt"] }],
+  ));
+
+Deno.test("slotsToTeams: drops a team whose every slot is a computer", () =>
+  assertEquals(
+    slotsToTeams([
+      taken(0, "Humans", "Clownhunt"),
+      computer(1, "Legion", "normal"),
+      computer(1, "Legion", "hard"),
+    ]),
+    [{ name: "Humans", players: ["Clownhunt"] }],
+  ));
+
+Deno.test("slotsToTeams: keeps a team that is still joinable beside its AI", () =>
+  assertEquals(
+    slotsToTeams([
+      taken(0, "West Legion", "Clownhunt"),
+      computer(0, "West Legion", "normal"),
+      open(1, "East Legion"),
+      computer(1, "East Legion", "normal"),
+    ]),
+    [
+      { name: "West Legion", players: ["Clownhunt"] },
+      { name: "East Legion", players: [] },
+    ],
+  ));
+
+Deno.test("slotsToTeams: leaves out the wc3stats tracker bot", () =>
+  assertEquals(
+    slotsToTeams([
+      taken(0, "Alliance", "Clownhunt"),
+      taken(0, "Alliance", "WC3Tracker"),
+    ]),
+    [{ name: "Alliance", players: ["Clownhunt"] }],
   ));
 
 Deno.test("slotsToTeams: shows observers only once somebody is watching", () => {

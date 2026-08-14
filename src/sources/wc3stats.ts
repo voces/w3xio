@@ -37,29 +37,43 @@ type Slot = z.infer<typeof zSlot>;
 
 const OBSERVERS = "Observers";
 
-/** The name to show for whoever holds a slot, or nothing if it's free. */
-const occupantOf = (slot: Slot): string | undefined => {
-  if (slot.player?.name) return slot.player.name;
-  if (!slot.isComputer) return undefined;
-  return slot.computerType && slot.computerType !== "normal"
-    ? `Computer (${slot.computerType})`
-    : "Computer";
+/**
+ * wc3stats' own observer bot, which sits in lobbies to collect data. It holds a
+ * slot but isn't somebody you'd be playing with.
+ */
+const TRACKER = "WC3Tracker";
+
+/** The player in a slot, or nothing if a person isn't sitting in it. */
+const playerOf = (slot: Slot): string | undefined => {
+  if (slot.isComputer) return undefined;
+  const name = slot.player?.name;
+  return !name || name === TRACKER ? undefined : name;
 };
 
 /**
  * Groups a lobby's slots into the teams we display.
  *
- * Open slots are dropped: the slot count already says how many are free, and
- * repeating "Open" a dozen times buries the players we're actually here to
- * show. Teams the map names are kept even when nobody is in them, so the shape
- * of the game stays legible. Unnamed teams only occur on maps without forces —
- * there every free slot is its own "team", so those are kept only once someone
- * is in them. Observers are worth a line for the same reason.
+ * Open slots are dropped, as are computers and wc3stats' tracker bot: the slot
+ * count already says how many seats are free, and a column of filler buries the
+ * players we're actually here to show. Teams the map names are kept even when
+ * nobody is in them, so the shape of the game stays legible — but a team whose
+ * every slot is a computer is scenery rather than somewhere to join, so those
+ * are dropped outright. A team that merely *includes* an AI slot alongside free
+ * ones is still joinable and stays, empty. Unnamed teams only occur
+ * on maps without forces, where every free slot is its own "team", so those are
+ * kept only once someone is in them. Observers are worth a line on those terms
+ * too.
  */
 export const slotsToTeams = (slots: Slot[]): LobbyTeam[] => {
   const teams = new Map<
     string,
-    { name: string; named: boolean; players: string[] }
+    {
+      name: string;
+      named: boolean;
+      slots: number;
+      computers: number;
+      players: string[];
+    }
   >();
 
   for (const slot of slots) {
@@ -75,17 +89,24 @@ export const slotsToTeams = (slots: Slot[]): LobbyTeam[] => {
       team = {
         name: observer ? OBSERVERS : name || `Team ${index + 1}`,
         named: !observer && !!name,
+        slots: 0,
+        computers: 0,
         players: [],
       };
       teams.set(key, team);
     }
 
-    const occupant = occupantOf(slot);
-    if (occupant) team.players.push(occupant);
+    team.slots++;
+    const player = playerOf(slot);
+    if (player) team.players.push(player);
+    else if (slot.isComputer) team.computers++;
   }
 
   return [...teams.values()]
-    .filter((team) => team.named || team.players.length > 0)
+    .filter((team) =>
+      team.players.length > 0 ||
+      (team.named && team.computers < team.slots)
+    )
     .map(({ name, players }) => ({ name, players }));
 };
 
