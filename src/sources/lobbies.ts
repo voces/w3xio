@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { discord, messageAdmin, messageAnders } from "./discord.ts";
 import { dropStaleLobbies } from "./staleness.ts";
+import { zGameList, zLobbyTeam } from "./wc3stats.ts";
 
 export const zLobby = z.object({
   host: z.string(),
@@ -17,11 +18,11 @@ export const zLobby = z.object({
   deadAt: z.number().optional(),
   created: z.number().optional(),
   dead: z.boolean().optional(),
+  // Only wc3stats reports who is in a lobby; wc3maps leaves this undefined.
+  teams: zLobbyTeam.array().optional(),
 }).transform((v) => ({ ...v, id: `${v.name}-${v.host}-${v.map}` }));
 
 export type Lobby = z.infer<typeof zLobby>;
-
-const zGameList = z.object({ body: zLobby.array() });
 
 const thLobby = z.object({
   host: z.string(),
@@ -132,7 +133,7 @@ const fetchLobbies = async (
 
 const parseWc3stats = (r: Response): Promise<Lobby[]> =>
   r.json().then((j) => {
-    const list = zGameList.parse(j).body;
+    const list: Lobby[] = zGameList.parse(j).body;
     const mostRecent = Math.max(
       ...list.map((l) => l.created).filter((v) => typeof v === "number"),
     );
@@ -183,8 +184,10 @@ export const getLobbies = async (): Promise<
 
   if (probeWc3stats) {
     lastWc3statsProbe = now;
+    // `/gamelist/all` over `/gamelist`: same lobbies, plus the slot roster we
+    // post as teams.
     const wc3StatsLobbies = await fetchLobbies(
-      "https://api.wc3stats.com/gamelist",
+      "https://api.wc3stats.com/gamelist/all",
       parseWc3stats,
     );
 

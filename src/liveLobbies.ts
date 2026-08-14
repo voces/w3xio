@@ -10,7 +10,13 @@ import { Alert, db, lobbyLedger, meta, Rule } from "./sources/kv.ts";
 import { isKnownInstance } from "./sources/staleness.ts";
 import { discord, messageAdminAndWarn } from "./sources/discord.ts";
 import { DiscordAPIError } from "@discordjs/rest";
-import { AllowedMentionsTypes, APIEmbed } from "discord-api-types/v10";
+import {
+  AllowedMentionsTypes,
+  APIEmbed,
+  APIEmbedField,
+  APIEmbedFooter,
+} from "discord-api-types/v10";
+import { LobbyTeam } from "./sources/wc3stats.ts";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
 import { notifyHealthy, notifyReady } from "./sources/watchdog.ts";
 import { recordMetrics, repairMetrics } from "./sources/metrics.ts";
@@ -63,6 +69,49 @@ const colors = {
   dead: 0xff7d9c,
 };
 
+// Discord caps an embed at 25 fields, and the roster shares that budget with
+// the lobby's own fields. A wall of teams stops being readable well before the
+// limit anyway, so cut it earlier and say how much was left off.
+const MAX_TEAM_FIELDS = 12;
+const FIELD_NAME_LIMIT = 256;
+const FIELD_VALUE_LIMIT = 1024;
+
+const truncate = (value: string, limit: number) =>
+  value.length <= limit ? value : `${value.slice(0, limit - 1)}…`;
+
+// Player and team names are arbitrary text; left alone, an underscore or
+// asterisk in one silently turns into Discord formatting.
+const escapeMarkdown = (value: string) =>
+  value.replace(/([\\*_~`|>])/g, "\\$1");
+
+// wc3stats publishes no logo asset we can hotlink, so its credit is text only.
+const footers: Partial<Record<DataSource, APIEmbedFooter>> = {
+  wc3stats: { text: "Powered by https://wc3stats.com" },
+  wc3maps: {
+    text: "Powered by https://wc3maps.com",
+    icon_url: "https://wc3maps.com/images/logo-square.jpg",
+  },
+};
+
+const teamFields = (teams: LobbyTeam[]): APIEmbedField[] => {
+  const shown = teams.slice(0, MAX_TEAM_FIELDS);
+  const fields = shown.map((team) => ({
+    name: truncate(escapeMarkdown(team.name), FIELD_NAME_LIMIT),
+    value: team.players.length
+      ? truncate(
+        team.players.map(escapeMarkdown).join("\n"),
+        FIELD_VALUE_LIMIT,
+      )
+      : "*empty*",
+    inline: true,
+  }));
+  const hidden = teams.length - shown.length;
+  if (hidden > 0) {
+    fields.push({ name: "…", value: `+${hidden} more teams`, inline: true });
+  }
+  return fields;
+};
+
 const getEmbed = (
   lobby: Lobby,
   status: "alive" | "missing" | "dead",
@@ -83,6 +132,7 @@ const getEmbed = (
       }`,
       inline: true,
     },
+    ...(lobby.teams?.length ? teamFields(lobby.teams) : []),
     ...(replayId
       ? [{
         name: "Replay",
@@ -90,14 +140,16 @@ const getEmbed = (
       }]
       : []),
   ],
-  footer: dataSource === "wc3maps"
-    ? {
-      text: "Powered by https://wc3maps.com",
-      icon_url: "https://wc3maps.com/images/logo-square.jpg",
-    }
-    : undefined,
+  footer: footers[dataSource],
   thumbnail: advanced?.thumbnail ? { url: advanced.thumbnail } : undefined,
 });
+
+// The roster is observed on its own schedule, a little behind the slot counts,
+// so a posted lobby can be one player-swap — or one cycle — out of date while
+// its count sits still. Comparing the rendered roster catches both. A feed that
+// reports no roster at all never reaches this: see the carry-over below.
+const teamsKey = (teams: LobbyTeam[] | undefined) =>
+  teams?.map((t) => `${t.name}:${t.players.join(",")}`).join("|") ?? "";
 
 const onNewLobby = async (
   lobby: Lobby,
@@ -421,7 +473,18 @@ const updateLobbies = async () => {
       await setLobby(newLobby);
     } else {
       newLobby.messages = oldLobby.messages;
-      if ((newLobby.slotsTaken !== oldLobby.slotsTaken) || oldLobby.deadAt) {
+      // wc3maps reports no roster, and wc3stats itself serves a lobby before it
+      // has scanned one. Rather than editing every posted lobby the moment we
+      // change feeds, keep the last roster we had and let it go stale until the
+      // slot count moves — by then we're editing the message anyway, and a
+      // count that has moved is proof the roster we're holding is wrong.
+      if (!newLobby.teams && newLobby.slotsTaken === oldLobby.slotsTaken) {
+        newLobby.teams = oldLobby.teams;
+      }
+      if (
+        newLobby.slotsTaken !== oldLobby.slotsTaken || oldLobby.deadAt ||
+        teamsKey(newLobby.teams) !== teamsKey(oldLobby.teams)
+      ) {
         const edited = await onUpdateLobby(newLobby, dataSource, alerts);
         if (oldLobby.deadAt) found++;
         else {
