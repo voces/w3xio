@@ -102,7 +102,7 @@ Deno.test("slotsToTeams: keeps a team that is still joinable beside its AI", () 
     ],
   ));
 
-Deno.test("slotsToTeams: leaves out the wc3stats tracker bot", () =>
+Deno.test("slotsToTeams: leaves out the WC3Tracker bot", () =>
   assertEquals(
     slotsToTeams([
       taken(0, "Alliance", "Clownhunt"),

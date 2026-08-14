@@ -49,8 +49,11 @@ type Slot = z.infer<typeof zSlot>;
 const OBSERVERS = "Observers";
 
 /**
- * wc3stats' own observer bot, which sits in lobbies to collect data. It holds a
- * slot but isn't somebody you'd be playing with.
+ * The bot account behind wc3tracker.com, another live lobby tracker. It keeps a
+ * standing "Poker Strike ALL WELCOME" game up and sits in that lobby's observer
+ * slot rather than playing — across sampling it was the only lobby of ~70 whose
+ * host wasn't in a playing slot, and it never turned up in anybody else's game.
+ * A permanent fixture of the list, not somebody you'd be playing with.
  */
 const TRACKER = "WC3Tracker";
 
