@@ -17,14 +17,25 @@ import { z } from "zod";
 const stripColorCodes = (value: string): string =>
   value.replace(/\|c[0-9a-fA-F]{8}|\|[rn]/g, "").trim();
 
+const zLobbyPlayer = z.union([
+  // Rosters stored before pips existed are bare names; normalise them so a
+  // lobby posted by the previous version still loads after a deploy.
+  z.string(),
+  z.object({ name: z.string(), color: z.string().optional() }),
+]).transform((v): { name: string; color?: string } =>
+  typeof v === "string" ? { name: v } : v
+);
+
 export const zLobbyTeam = z.object({
   name: z.string(),
-  players: z.string().array(),
+  players: zLobbyPlayer.array(),
 });
 
 export type LobbyTeam = z.infer<typeof zLobbyTeam>;
+export type LobbyPlayer = LobbyTeam["players"][number];
 
 const zSlot = z.object({
+  color: z.string().nullish(),
   computerType: z.string().nullish(),
   isComputer: z.boolean().nullish(),
   isObserver: z.boolean().nullish(),
@@ -72,7 +83,7 @@ export const slotsToTeams = (slots: Slot[]): LobbyTeam[] => {
       named: boolean;
       slots: number;
       computers: number;
-      players: string[];
+      players: LobbyPlayer[];
     }
   >();
 
@@ -98,8 +109,11 @@ export const slotsToTeams = (slots: Slot[]): LobbyTeam[] => {
 
     team.slots++;
     const player = playerOf(slot);
-    if (player) team.players.push(player);
-    else if (slot.isComputer) team.computers++;
+    if (player) {
+      team.players.push(
+        slot.color ? { name: player, color: slot.color } : { name: player },
+      );
+    } else if (slot.isComputer) team.computers++;
   }
 
   return [...teams.values()]
