@@ -15,7 +15,7 @@
 
 import { APIEmoji } from "discord-api-types/v10";
 import { discord } from "./discord.ts";
-import { solidSquare } from "./png.ts";
+import { colorPip } from "./png.ts";
 
 /** Warcraft III's 24 player colours, as the wc3stats feed reports them. */
 const PALETTE: Record<string, string> = {
@@ -74,7 +74,7 @@ export const provisionPips = async (): Promise<void> => {
       let id = existing.get(name);
       if (!id) {
         const emoji = await discord.rest.post(route, {
-          body: { name, image: await solidSquare(hex) },
+          body: { name, image: await colorPip(hex) },
         }) as APIEmoji;
         id = emoji.id;
         created++;

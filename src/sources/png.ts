@@ -1,16 +1,19 @@
 /**
- * A minimal PNG encoder for solid-colour squares.
+ * A minimal PNG encoder for the roster's colour pips (see pips.ts).
  *
- * Only used to mint the roster's colour pips (see pips.ts). PNG's IDAT is
- * zlib-wrapped deflate, which is exactly what CompressionStream produces, so a
- * picture this simple needs no image library — and keeping it here, free of
- * Discord imports, keeps it testable.
+ * PNG's IDAT is zlib-wrapped deflate, which is exactly what CompressionStream
+ * produces, so a picture this simple needs no image library — and keeping it
+ * here, free of Discord imports, keeps it testable.
  */
 
-// Emoji render at a fixed size in the client, so this only needs to be large
-// enough not to look soft. A solid square this size compresses to a few hundred
-// bytes, far under Discord's 256KB limit.
-const SIZE = 32;
+// A pip centred on a transparent frame, as wc3stats draws them, rather than a
+// square bled to the edges: Discord renders emoji in a fixed box, so a
+// full-bleed square lands as a heavy block against the name while an inset one
+// reads as a dot. The canvas is larger than wc3stats' 51px so it stays crisp
+// when a client renders emoji at 2x; only the ratio between the two matters to
+// how it looks.
+const SIZE = 128;
+const PIP = 78;
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -54,19 +57,23 @@ const base64 = (bytes: Uint8Array): string => {
   return btoa(binary);
 };
 
-/** A solid square of `hex`, as the data URI Discord's emoji upload wants. */
-export const solidSquare = async (hex: string): Promise<string> => {
+/** A pip of `hex`, as the data URI Discord's emoji upload wants. */
+export const colorPip = async (hex: string): Promise<string> => {
   const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const inset = Math.round((SIZE - PIP) / 2);
 
-  // Raw scanlines: each row is a filter byte (0, none) followed by RGB triples.
-  const raw = new Uint8Array(SIZE * (1 + SIZE * 3));
-  for (let y = 0; y < SIZE; y++) {
-    const row = y * (1 + SIZE * 3);
-    for (let x = 0; x < SIZE; x++) {
-      const pixel = row + 1 + x * 3;
+  // Raw scanlines: each row is a filter byte (0, none) followed by RGBA
+  // quadruples. Everything outside the pip is left fully transparent.
+  const stride = 1 + SIZE * 4;
+  const raw = new Uint8Array(SIZE * stride);
+  for (let y = inset; y < inset + PIP; y++) {
+    const row = y * stride;
+    for (let x = inset; x < inset + PIP; x++) {
+      const pixel = row + 1 + x * 4;
       raw[pixel] = r;
       raw[pixel + 1] = g;
       raw[pixel + 2] = b;
+      raw[pixel + 3] = 255;
     }
   }
 
@@ -75,7 +82,7 @@ export const solidSquare = async (hex: string): Promise<string> => {
   view.setUint32(0, SIZE);
   view.setUint32(4, SIZE);
   header[8] = 8; // bit depth
-  header[9] = 2; // truecolour
+  header[9] = 6; // truecolour with alpha
 
   const parts = [
     PNG_SIGNATURE,
