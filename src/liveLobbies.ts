@@ -14,6 +14,7 @@ import {
   AllowedMentionsTypes,
   APIEmbed,
   APIEmbedField,
+  APIEmbedFooter,
 } from "discord-api-types/v10";
 import { LobbyTeam } from "./sources/wc3stats.ts";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
@@ -83,6 +84,15 @@ const truncate = (value: string, limit: number) =>
 const escapeMarkdown = (value: string) =>
   value.replace(/([\\*_~`|>])/g, "\\$1");
 
+// wc3stats publishes no logo asset we can hotlink, so its credit is text only.
+const footers: Partial<Record<DataSource, APIEmbedFooter>> = {
+  wc3stats: { text: "Powered by https://wc3stats.com" },
+  wc3maps: {
+    text: "Powered by https://wc3maps.com",
+    icon_url: "https://wc3maps.com/images/logo-square.jpg",
+  },
+};
+
 const teamFields = (teams: LobbyTeam[]): APIEmbedField[] => {
   const shown = teams.slice(0, MAX_TEAM_FIELDS);
   const fields = shown.map((team) => ({
@@ -130,18 +140,14 @@ const getEmbed = (
       }]
       : []),
   ],
-  footer: dataSource === "wc3maps"
-    ? {
-      text: "Powered by https://wc3maps.com",
-      icon_url: "https://wc3maps.com/images/logo-square.jpg",
-    }
-    : undefined,
+  footer: footers[dataSource],
   thumbnail: advanced?.thumbnail ? { url: advanced.thumbnail } : undefined,
 });
 
 // The roster is observed on its own schedule, a little behind the slot counts,
 // so a posted lobby can be one player-swap — or one cycle — out of date while
-// its count sits still. Comparing the rendered roster catches both.
+// its count sits still. Comparing the rendered roster catches both. A feed that
+// reports no roster at all never reaches this: see the carry-over below.
 const teamsKey = (teams: LobbyTeam[] | undefined) =>
   teams?.map((t) => `${t.name}:${t.players.join(",")}`).join("|") ?? "";
 
@@ -467,6 +473,14 @@ const updateLobbies = async () => {
       await setLobby(newLobby);
     } else {
       newLobby.messages = oldLobby.messages;
+      // wc3maps reports no roster, and wc3stats itself serves a lobby before it
+      // has scanned one. Rather than editing every posted lobby the moment we
+      // change feeds, keep the last roster we had and let it go stale until the
+      // slot count moves — by then we're editing the message anyway, and a
+      // count that has moved is proof the roster we're holding is wrong.
+      if (!newLobby.teams && newLobby.slotsTaken === oldLobby.slotsTaken) {
+        newLobby.teams = oldLobby.teams;
+      }
       if (
         newLobby.slotsTaken !== oldLobby.slotsTaken || oldLobby.deadAt ||
         teamsKey(newLobby.teams) !== teamsKey(oldLobby.teams)
