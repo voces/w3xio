@@ -17,6 +17,7 @@ import {
   APIEmbedFooter,
 } from "discord-api-types/v10";
 import { LobbyTeam } from "./sources/wc3stats.ts";
+import { pip, provisionPips } from "./sources/pips.ts";
 import { getReplayMap, getReplays } from "./sources/replays.ts";
 import { notifyHealthy, notifyReady } from "./sources/watchdog.ts";
 import { recordMetrics, repairMetrics } from "./sources/metrics.ts";
@@ -99,7 +100,9 @@ const teamFields = (teams: LobbyTeam[]): APIEmbedField[] => {
     name: truncate(escapeMarkdown(team.name), FIELD_NAME_LIMIT),
     value: team.players.length
       ? truncate(
-        team.players.map(escapeMarkdown).join("\n"),
+        team.players
+          .map((player) => `${pip(player.color)}${escapeMarkdown(player.name)}`)
+          .join("\n"),
         FIELD_VALUE_LIMIT,
       )
       : "*empty*",
@@ -149,7 +152,11 @@ const getEmbed = (
 // its count sits still. Comparing the rendered roster catches both. A feed that
 // reports no roster at all never reaches this: see the carry-over below.
 const teamsKey = (teams: LobbyTeam[] | undefined) =>
-  teams?.map((t) => `${t.name}:${t.players.join(",")}`).join("|") ?? "";
+  teams
+    ?.map((t) =>
+      `${t.name}:${t.players.map((p) => `${p.color ?? ""}/${p.name}`).join(",")}`
+    )
+    .join("|") ?? "";
 
 const onNewLobby = async (
   lobby: Lobby,
@@ -639,6 +646,13 @@ if (!Deno.env.get("DISABLE_LIVE_LOBBIES")) {
   });
   const restored = await meta.getDataSource();
   if (restored) restoreDataSource(restored);
+
+  // Before the first post, so a lobby isn't posted pip-less and left that way
+  // until something else about it changes. Failure is survivable: rosters just
+  // render as plain names.
+  await provisionPips().catch((err: unknown) =>
+    console.error(new Date(), "Failed to provision lobby colour pips:", err)
+  );
 
   // One-time cleanup of metric buckets corrupted by the lobbies->messages rename.
   repairMetrics();

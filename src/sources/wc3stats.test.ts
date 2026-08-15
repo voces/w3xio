@@ -1,17 +1,23 @@
 import { assertEquals } from "@std/assert";
-import { slotsToTeams, zGameList } from "./wc3stats.ts";
+import { slotsToTeams, zGameList, zLobbyTeam } from "./wc3stats.ts";
 
-const open = (team: number, teamName: string | null) => ({
+const open = (team: number, teamName: string | null, color = "red") => ({
   team,
   teamName,
+  color,
   isComputer: false,
   isObserver: false,
   computerType: null,
   player: null,
 });
 
-const taken = (team: number, teamName: string | null, name: string) => ({
-  ...open(team, teamName),
+const taken = (
+  team: number,
+  teamName: string | null,
+  name: string,
+  color = "red",
+) => ({
+  ...open(team, teamName, color),
   player: { name, battleTag: `${name}#1234` },
 });
 
@@ -30,8 +36,14 @@ Deno.test("slotsToTeams: groups players under their team", () =>
       taken(1, "Horde", "ArkhanIV"),
     ]),
     [
-      { name: "Alliance", players: ["Clownhunt"] },
-      { name: "Horde", players: ["Moridin", "ArkhanIV"] },
+      { name: "Alliance", players: [{ name: "Clownhunt", color: "red" }] },
+      {
+        name: "Horde",
+        players: [{ name: "Moridin", color: "red" }, {
+          name: "ArkhanIV",
+          color: "red",
+        }],
+      },
     ],
   ));
 
@@ -39,7 +51,7 @@ Deno.test("slotsToTeams: keeps a named team with nobody in it", () =>
   assertEquals(
     slotsToTeams([taken(0, "Alliance", "Clownhunt"), open(1, "Horde")]),
     [
-      { name: "Alliance", players: ["Clownhunt"] },
+      { name: "Alliance", players: [{ name: "Clownhunt", color: "red" }] },
       { name: "Horde", players: [] },
     ],
   ));
@@ -47,29 +59,63 @@ Deno.test("slotsToTeams: keeps a named team with nobody in it", () =>
 Deno.test("slotsToTeams: drops unnamed teams holding only open slots", () =>
   assertEquals(
     slotsToTeams([taken(0, null, "Clownhunt"), open(1, null), open(2, null)]),
-    [{ name: "Team 1", players: ["Clownhunt"] }],
+    [{ name: "Team 1", players: [{ name: "Clownhunt", color: "red" }] }],
   ));
 
 Deno.test("slotsToTeams: strips colour codes from team names", () =>
   assertEquals(
     slotsToTeams([taken(0, "|cffFF8C0AEvil Pumpkins|r", "Clownhunt")]),
-    [{ name: "Evil Pumpkins", players: ["Clownhunt"] }],
+    [{ name: "Evil Pumpkins", players: [{ name: "Clownhunt", color: "red" }] }],
   ));
 
-Deno.test("slotsToTeams: lists computers, naming non-default difficulties", () =>
+Deno.test("slotsToTeams: leaves computers out of a team people are in", () =>
   assertEquals(
     slotsToTeams([
-      computer(0, "Legion", "normal"),
-      computer(0, "Legion", "hard"),
+      taken(0, "Humans", "Clownhunt"),
+      computer(0, "Humans", "normal"),
+      open(0, "Humans"),
     ]),
-    [{ name: "Legion", players: ["Computer", "Computer (hard)"] }],
+    [{ name: "Humans", players: [{ name: "Clownhunt", color: "red" }] }],
+  ));
+
+Deno.test("slotsToTeams: drops a team whose every slot is a computer", () =>
+  assertEquals(
+    slotsToTeams([
+      taken(0, "Humans", "Clownhunt"),
+      computer(1, "Legion", "normal"),
+      computer(1, "Legion", "hard"),
+    ]),
+    [{ name: "Humans", players: [{ name: "Clownhunt", color: "red" }] }],
+  ));
+
+Deno.test("slotsToTeams: keeps a team that is still joinable beside its AI", () =>
+  assertEquals(
+    slotsToTeams([
+      taken(0, "West Legion", "Clownhunt"),
+      computer(0, "West Legion", "normal"),
+      open(1, "East Legion"),
+      computer(1, "East Legion", "normal"),
+    ]),
+    [
+      { name: "West Legion", players: [{ name: "Clownhunt", color: "red" }] },
+      { name: "East Legion", players: [] },
+    ],
+  ));
+
+Deno.test("slotsToTeams: leaves out the WC3Tracker bot", () =>
+  assertEquals(
+    slotsToTeams([
+      taken(0, "Alliance", "Clownhunt"),
+      taken(0, "Alliance", "WC3Tracker"),
+    ]),
+    [{ name: "Alliance", players: [{ name: "Clownhunt", color: "red" }] }],
   ));
 
 Deno.test("slotsToTeams: shows observers only once somebody is watching", () => {
   const observer = { ...open(5, null), isObserver: true };
   assertEquals(
     slotsToTeams([taken(0, "Alliance", "Clownhunt"), observer]),
-    [{ name: "Alliance", players: ["Clownhunt"] }],
+    [{ name: "Alliance", players: [{ name: "Clownhunt", color: "red" }] }],
   );
   assertEquals(
     slotsToTeams([
@@ -77,8 +123,8 @@ Deno.test("slotsToTeams: shows observers only once somebody is watching", () => 
       { ...observer, player: { name: "Moridin" } },
     ]),
     [
-      { name: "Alliance", players: ["Clownhunt"] },
-      { name: "Observers", players: ["Moridin"] },
+      { name: "Alliance", players: [{ name: "Clownhunt", color: "red" }] },
+      { name: "Observers", players: [{ name: "Moridin", color: "red" }] },
     ],
   );
 });
@@ -110,7 +156,10 @@ Deno.test("zGameList: flattens a lobby into the shape the bot stores", () => {
     created: 1786735788,
     messages: [],
     teams: [
-      { name: "Broken Alliances", players: ["Clownhunt"] },
+      {
+        name: "Broken Alliances",
+        players: [{ name: "Clownhunt", color: "red" }],
+      },
       { name: "Neutrals", players: [] },
     ],
     id: "Broken Alliances 8.0c-Clownhunt#115445-Broken Alliances v8.0c",
@@ -151,4 +200,29 @@ Deno.test("zGameList: an unparseable creation date leaves the lobby undated", ()
     zGameList.parse({ body: [lobby({ createdAt: "not a date" })] }).body[0]
       .created,
     undefined,
+  ));
+
+Deno.test("slotsToTeams: carries each slot's colour for its pip", () =>
+  assertEquals(
+    slotsToTeams([
+      taken(0, "Alliance", "Clownhunt", "red"),
+      taken(0, "Alliance", "Moridin", "light_blue"),
+      taken(1, "Horde", "ArkhanIV", "yellow"),
+    ]),
+    [
+      {
+        name: "Alliance",
+        players: [
+          { name: "Clownhunt", color: "red" },
+          { name: "Moridin", color: "light_blue" },
+        ],
+      },
+      { name: "Horde", players: [{ name: "ArkhanIV", color: "yellow" }] },
+    ],
+  ));
+
+Deno.test("zLobbyTeam: reads back rosters stored before pips existed", () =>
+  assertEquals(
+    zLobbyTeam.parse({ name: "Alliance", players: ["Clownhunt", "Moridin"] }),
+    { name: "Alliance", players: [{ name: "Clownhunt" }, { name: "Moridin" }] },
   ));

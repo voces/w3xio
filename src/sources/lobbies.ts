@@ -180,7 +180,8 @@ export const getLobbies = async (): Promise<
   // recovery instead of hammering a down service every 10s.
   const probeWc3stats = dataSource === "wc3stats" || dataSource === "init" ||
     bothDown ||
-    (dataSource === "wc3maps" && now - lastWc3statsProbe >= WC3STATS_RECHECK_MS);
+    (dataSource === "wc3maps" &&
+      now - lastWc3statsProbe >= WC3STATS_RECHECK_MS);
 
   if (probeWc3stats) {
     lastWc3statsProbe = now;
