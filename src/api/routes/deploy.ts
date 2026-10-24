@@ -35,6 +35,16 @@ const APPS: Record<string, App> = {
     target: (version) => version,
     build: ["deno", "task", "build"],
   },
+  "w3mmd": {
+    dir: Deno.env.get("W3MMD_DIR") ?? "/home/ubuntu/w3mmd",
+    service: "w3mmd",
+    // Deploys the master branch tip; `version` is the merged commit SHA. Cache
+    // npm dependencies before restart so a failed download fails the deploy
+    // rather than the restarted service.
+    fetch: ["git", "fetch", "origin", "master"],
+    target: (version) => version,
+    build: ["deno", "install"],
+  },
 };
 
 const run = async (cmd: string[], cwd?: string) => {
