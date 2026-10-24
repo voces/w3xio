@@ -35,6 +35,15 @@ const APPS: Record<string, App> = {
     target: (version) => version,
     build: ["deno", "task", "build"],
   },
+  "blocktol-dev": {
+    dir: Deno.env.get("BLOCKTOL_DEV_DIR") ?? "/home/ubuntu/blocktol-dev",
+    service: "blocktol-dev",
+    // Deploys prod's tip or an approved PR's head, so `version` can be on any
+    // branch: fetch them all. Boot migrates blocktol-dev, as prod's does prod.
+    fetch: ["git", "fetch", "origin"],
+    target: (version) => version,
+    build: ["deno", "task", "build"],
+  },
   "w3mmd": {
     dir: Deno.env.get("W3MMD_DIR") ?? "/home/ubuntu/w3mmd",
     service: "w3mmd",
@@ -45,6 +54,16 @@ const APPS: Record<string, App> = {
     target: (version) => version,
     build: ["deno", "install"],
   },
+};
+
+// One deploy per app at a time, in arrival order: two overlapping runs would
+// interleave their fetch, checkout and build in the same checkout. A failed run
+// doesn't block the next.
+const queues = new Map<string, Promise<unknown>>();
+const serialize = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
+  const next = (queues.get(key) ?? Promise.resolve()).catch(() => {}).then(fn);
+  queues.set(key, next);
+  return next;
 };
 
 const run = async (cmd: string[], cwd?: string) => {
@@ -103,51 +122,56 @@ export const deploy: Handler = async (ctx) => {
     });
   };
 
-  const fetch = await run(app.fetch, app.dir);
-  if (fetch.code !== 0) throw fail("git fetch failed", fetch.stderr);
+  return await serialize(appName, async () => {
+    const fetch = await run(app.fetch, app.dir);
+    if (fetch.code !== 0) throw fail("git fetch failed", fetch.stderr);
 
-  const checkout = await run(["git", "checkout", app.target(version)], app.dir);
-  if (checkout.code !== 0) throw fail("git checkout failed", checkout.stderr);
-
-  if (app.build) {
-    const build = await run(app.build, app.dir);
-    if (build.code !== 0) throw fail("build failed", build.stderr);
-  }
-
-  const restart = await run(["sudo", "systemctl", "restart", app.service]);
-  if (restart.code !== 0) {
-    throw fail("systemctl restart failed", restart.stderr);
-  }
-
-  // Poll for the service to become active (or fail)
-  let serviceStatus = "";
-  for (let i = 0; i < 10; i++) {
-    await new Promise((r) => setTimeout(r, 1000));
-    const result = await run(["systemctl", "is-active", app.service]);
-    serviceStatus = result.stdout.trim();
-    if (serviceStatus === "active") break;
-    if (serviceStatus === "failed") break;
-  }
-
-  if (serviceStatus !== "active") {
-    const logs = await run([
-      "journalctl",
-      "-u",
-      app.service,
-      "--no-pager",
-      "-n",
-      "20",
-    ]);
-    messageAdmin(
-      `Deploy of ${appName} ${version} failed: service not active (${serviceStatus})\n\`\`\`\n${logs.stdout}\n\`\`\``,
+    const checkout = await run(
+      ["git", "checkout", app.target(version)],
+      app.dir,
     );
-    throw new APIError(
-      "deploy_failed",
-      `Service not active after restart: ${serviceStatus}`,
-      { status: 500 },
-    );
-  }
+    if (checkout.code !== 0) throw fail("git checkout failed", checkout.stderr);
 
-  messageAdmin(`Deployed ${appName} ${version}`);
-  return { ok: true, app: appName, version };
+    if (app.build) {
+      const build = await run(app.build, app.dir);
+      if (build.code !== 0) throw fail("build failed", build.stderr);
+    }
+
+    const restart = await run(["sudo", "systemctl", "restart", app.service]);
+    if (restart.code !== 0) {
+      throw fail("systemctl restart failed", restart.stderr);
+    }
+
+    // Poll for the service to become active (or fail)
+    let serviceStatus = "";
+    for (let i = 0; i < 10; i++) {
+      await new Promise((r) => setTimeout(r, 1000));
+      const result = await run(["systemctl", "is-active", app.service]);
+      serviceStatus = result.stdout.trim();
+      if (serviceStatus === "active") break;
+      if (serviceStatus === "failed") break;
+    }
+
+    if (serviceStatus !== "active") {
+      const logs = await run([
+        "journalctl",
+        "-u",
+        app.service,
+        "--no-pager",
+        "-n",
+        "20",
+      ]);
+      messageAdmin(
+        `Deploy of ${appName} ${version} failed: service not active (${serviceStatus})\n\`\`\`\n${logs.stdout}\n\`\`\``,
+      );
+      throw new APIError(
+        "deploy_failed",
+        `Service not active after restart: ${serviceStatus}`,
+        { status: 500 },
+      );
+    }
+
+    messageAdmin(`Deployed ${appName} ${version}`);
+    return { ok: true, app: appName, version };
+  });
 };
