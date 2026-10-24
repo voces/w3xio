@@ -29,11 +29,12 @@ const APPS: Record<string, App> = {
   "blocktol": {
     dir: Deno.env.get("BLOCKTOL_DIR") ?? "/home/verit/blocktol",
     service: "blocktol",
-    // Deploys the prod branch tip; `version` is the merged commit SHA. The client
-    // bundle is gitignored, so rebuild it before restart.
+    // Deploys the prod branch tip; `version` is the merged commit SHA. The build
+    // is the checked-out commit's own `deploy/build` (it rebuilds the gitignored
+    // client bundle), so blocktol changes its build without a change here.
     fetch: ["git", "fetch", "origin", "prod"],
     target: (version) => version,
-    build: ["deno", "task", "build"],
+    build: ["./deploy/build"],
   },
   "blocktol-dev": {
     dir: Deno.env.get("BLOCKTOL_DEV_DIR") ?? "/home/ubuntu/blocktol-dev",
@@ -42,7 +43,7 @@ const APPS: Record<string, App> = {
     // branch: fetch them all. Boot migrates blocktol-dev, as prod's does prod.
     fetch: ["git", "fetch", "origin"],
     target: (version) => version,
-    build: ["deno", "task", "build"],
+    build: ["./deploy/build"],
   },
   "w3mmd": {
     dir: Deno.env.get("W3MMD_DIR") ?? "/home/ubuntu/w3mmd",
