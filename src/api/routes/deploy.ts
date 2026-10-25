@@ -55,6 +55,14 @@ const APPS: Record<string, App> = {
     target: (version) => version,
     build: ["deno", "install"],
   },
+  "ephemeral": {
+    dir: Deno.env.get("EPHEMERAL_DIR") ?? "/home/ubuntu/ephemeral",
+    service: "ephemeral",
+    // Same shape as w3mmd: the master tip, npm dependencies cached first.
+    fetch: ["git", "fetch", "origin", "master"],
+    target: (version) => version,
+    build: ["deno", "install"],
+  },
 };
 
 // One deploy per app at a time, in arrival order: two overlapping runs would
