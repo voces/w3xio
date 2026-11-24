@@ -3,6 +3,8 @@ import { APIError } from "../ErrorCode.ts";
 import { Handler } from "../types.ts";
 
 const DEPLOY_SECRET = Deno.env.get("DEPLOY_SECRET");
+const BUN = Deno.env.get("BUN") ?? `${Deno.env.get("HOME")}/.bun/bin/bun`;
+const INSTALL_APP_CONFIG = "/usr/local/sbin/install-app-config";
 
 // Each deployable app co-hosted on this box: where its checkout lives, the
 // systemd unit to restart, how to fetch and which ref to move to for a given
@@ -16,6 +18,9 @@ type App = {
   target: (version: string) => string;
   // Run in the checkout before the restart (e.g. bundle a client). Optional.
   build?: string[];
+  // Install the unit and nginx site the checkout ships under ops/, through the
+  // root-owned installer in ops/install_app_config.py.
+  installConfig?: boolean;
 };
 
 const APPS: Record<string, App> = {
@@ -25,6 +30,8 @@ const APPS: Record<string, App> = {
     // Deploys a tag its release workflow pushed.
     fetch: ["git", "fetch", "--tags"],
     target: (version) => version,
+    build: [BUN, "install", "--frozen-lockfile"],
+    installConfig: true,
   },
   "blocktol": {
     dir: Deno.env.get("BLOCKTOL_DIR") ?? "/home/verit/blocktol",
@@ -144,6 +151,13 @@ export const deploy: Handler = async (ctx) => {
     if (app.build) {
       const build = await run(app.build, app.dir);
       if (build.code !== 0) throw fail("build failed", build.stderr);
+    }
+
+    if (app.installConfig) {
+      const install = await run(["sudo", "-n", INSTALL_APP_CONFIG, appName]);
+      if (install.code !== 0) {
+        throw fail("config install failed", install.stderr);
+      }
     }
 
     const restart = await run(["sudo", "systemctl", "restart", app.service]);

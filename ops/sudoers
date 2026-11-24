@@ -1,0 +1,4 @@
+# Install as /etc/sudoers.d/w3xio-deploy (root:root, 0440) with
+#   sudo visudo -cf ops/sudoers && sudo install -m 0440 ops/sudoers /etc/sudoers.d/w3xio-deploy
+# The installer path must be root-owned; never point this at a checkout.
+ubuntu ALL=(root) NOPASSWD: /usr/local/sbin/install-app-config emoji-sheep-tag
