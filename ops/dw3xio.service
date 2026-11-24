@@ -1,0 +1,22 @@
+[Unit]
+Description=dw3xio - A WC3 service written in Deno
+Documentation=https://github.com/voces/w3xio
+After=network.target
+
+[Service]
+Type=notify
+NotifyAccess=main
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/w3xio
+ExecStart=/home/ubuntu/.deno/bin/deno run --allow-all --unstable-kv --unstable-cron --unstable-net src/index.ts
+Environment=APPLICATION_ID=536245741182648360
+Environment=EMOJI_SHEEP_TAG_DIR=/home/ubuntu/emoji-sheep-tag
+Environment=BLOCKTOL_DIR=/home/ubuntu/blocktol
+EnvironmentFile=/etc/w3xio/env
+WatchdogSec=60
+Restart=on-watchdog
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

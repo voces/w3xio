@@ -9,6 +9,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(__file__))
 
 from install_app_config import (  # noqa: E402
+    APPS,
     App,
     ConfigFile,
     InstallError,
@@ -94,6 +95,11 @@ class SystemdTest(unittest.TestCase):
             environment_files=("/etc/emojist/env",),
         )
         self.assertEqual(validate_systemd(text, app), [])
+
+    def test_accepts_shipped_dw3xio_unit(self):
+        path = os.path.join(os.path.dirname(__file__), "dw3xio.service")
+        with open(path) as handle:
+            self.assertEqual(validate_systemd(handle.read(), APPS["w3xio"]), [])
 
     def test_rejects_unsafe_units(self):
         for old, new in (

@@ -1,6 +1,7 @@
 import { messageAdmin } from "../../sources/discord.ts";
 import { APIError } from "../ErrorCode.ts";
 import { Handler } from "../types.ts";
+import { isDeployAuthorized } from "../util/deployAuth.ts";
 
 const DEPLOY_SECRET = Deno.env.get("DEPLOY_SECRET");
 const BUN = Deno.env.get("BUN") ?? `${Deno.env.get("HOME")}/.bun/bin/bun`;
@@ -104,9 +105,9 @@ export const deploy: Handler = async (ctx) => {
     });
   }
 
-  const auth = ctx.req.headers.get("authorization") ??
-    ctx.url.searchParams.get("token");
-  if (auth !== DEPLOY_SECRET) {
+  if (
+    !isDeployAuthorized(ctx.req.headers.get("authorization"), DEPLOY_SECRET)
+  ) {
     throw new APIError("unauthorized", "Invalid deploy token", { status: 401 });
   }
 

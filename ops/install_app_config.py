@@ -61,6 +61,18 @@ APPS: dict[str, App] = {
         ),
         environment_files=("/etc/emojist/env",),
     ),
+    "w3xio": App(
+        checkout="/home/ubuntu/w3xio",
+        user="ubuntu",
+        files=(
+            ConfigFile(
+                "ops/dw3xio.service",
+                "/etc/systemd/system/dw3xio.service",
+                "systemd",
+            ),
+        ),
+        environment_files=("/etc/w3xio/env",),
+    ),
 }
 
 
