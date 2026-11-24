@@ -149,7 +149,7 @@ def validate_systemd(text: str, app: App) -> list[str]:
         elif key == "WorkingDirectory" and not within(value, app.checkout):
             errors.append(f"line {number}: WorkingDirectory must be in the checkout")
         elif key == "EnvironmentFile" and (
-            value.removeprefix("-") not in app.environment_files
+            (value[1:] if value.startswith("-") else value) not in app.environment_files
         ):
             errors.append(f"line {number}: EnvironmentFile {value} is not allowed")
         elif key == "StateDirectory" and not all(
