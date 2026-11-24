@@ -43,6 +43,22 @@ Then delete the `est.w3x.io` server block from
 
 Reinstall the script after changing it here; the deploy never updates it.
 
+## dw3xio's own unit
+
+w3xio doesn't deploy itself, so its unit (`ops/dw3xio.service`) is installed by
+hand after pulling. It loads its secrets from `/etc/w3xio/env` (keys in
+`ops/w3xio.env.example`) and installs to `/etc/systemd/system/dw3xio.service`,
+which takes precedence over the old `/lib/systemd/system/dw3xio.service`.
+
+```sh
+sudo install -d -m 0755 /etc/w3xio
+sudo install -m 0600 /dev/null /etc/w3xio/env   # then fill it in from the old unit
+sudo install -o root -g root -m 0755 ops/install_app_config.py /usr/local/sbin/install-app-config
+sudo install-app-config w3xio
+sudo systemctl restart dw3xio
+sudo rm /lib/systemd/system/dw3xio.service && sudo systemctl daemon-reload
+```
+
 ## Tests
 
 ```sh
